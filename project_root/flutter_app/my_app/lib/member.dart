@@ -1,11 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'homepage.dart';
 import 'settings.dart';
 import 'tuner.dart';
 import 'chordchart.dart';
+import 'login.dart';
 
 class MemberPage extends StatelessWidget {
   const MemberPage({super.key});
+
+  Future<Map<String, dynamic>?> _loadProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    final data = doc.data() ?? {};
+    return {
+      'uid': user.uid,
+      'email': user.email ?? '',
+      'username': data['username'] ?? '(未設定)',
+      'createdAt': data['createdAt'], // 可能是 Timestamp
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +64,7 @@ class MemberPage extends StatelessWidget {
                   Center(
                     child: CircleAvatar(
                       radius: 60,
-                      backgroundColor: Colors.transparent, // 若想灰底改 0xffd9d9d9
+                      backgroundColor: Colors.transparent,
                       child: Image.asset(
                         'assets/images/member.png',
                         width: 120,
@@ -54,10 +76,63 @@ class MemberPage extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  // 帳號/密碼欄
-                  const _InputLabel(label: '帳號：'),
-                  const _InputLabel(label: '密碼：'),
-                  const _InputLabel(label: '二次驗證密碼：'),
+                  // 🔑 從 Firebase 讀取會員資料
+                  FutureBuilder<Map<String, dynamic>?>(
+                    future: _loadProfile(),
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
+                          ),
+                        );
+                      }
+
+                      // 尚未登入
+                      if (!snap.hasData || snap.data == null) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const _InputLabel(label: '尚未登入'),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black,
+                                shape: const StadiumBorder(),
+                                minimumSize: const Size.fromHeight(44),
+                              ),
+                              onPressed: () {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const LoginPage()),
+                                  (_) => false,
+                                );
+                              },
+                              child: const Text('前往登入'),
+                            ),
+                          ],
+                        );
+                      }
+
+                      final data = snap.data!;
+                      final email = (data['email'] as String?) ?? '';
+                      final username = (data['username'] as String?) ?? '(未設定)';
+                      final uid = (data['uid'] as String?) ?? '';
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Field(label: '帳號（Email）', value: email),
+                          _Field(label: '暱稱（Username）', value: username),
+                          _Field(label: 'UID', value: uid),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -67,11 +142,10 @@ class MemberPage extends StatelessWidget {
               top: 20,
               right: 20,
               child: GestureDetector(
-                onTap:
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SettingsPage()),
-                    ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                ),
                 child: Image.asset('assets/images/Setting.png', width: 50),
               ),
             ),
@@ -140,29 +214,61 @@ class _InputLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 16), // 整段上下留白
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          // 文字
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontFamily: 'LaBelleAurore',
-          ),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontFamily: 'LaBelleAurore',
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Divider(
+              color: Colors.white,
+              thickness: 1.2,
+              height: 1,
+            ),
+          ],
         ),
-        const SizedBox(height: 10), // 與線的間距
-        const Divider(
-          // 白線
-          color: Colors.white,
-          thickness: 1.2, // 看得更清楚
-          height: 1, // 不再吃額外空間
+      );
+}
+
+class _Field extends StatelessWidget {
+  final String label;
+  final String value;
+  const _Field({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                )),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                value,
+                style: const TextStyle(color: Colors.black, fontSize: 16),
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 class _NavItem extends StatelessWidget {
@@ -173,9 +279,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: InkWell(
-      onTap: onTap,
-      child: Center(child: Image.asset(img, width: size)),
-    ),
-  );
+        child: InkWell(
+          onTap: onTap,
+          child: Center(child: Image.asset(img, width: size)),
+        ),
+      );
 }
