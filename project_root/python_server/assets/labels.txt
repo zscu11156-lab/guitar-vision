@@ -1,0 +1,12 @@
+Am,
+Am7,
+B,
+Bm,
+C,
+Cadd9,
+D,
+D7/F#,
+Dsus4,
+Em,
+Em7,
+G
