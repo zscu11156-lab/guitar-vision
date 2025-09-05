@@ -82,11 +82,10 @@ class HomePage extends StatelessWidget {
               top: 20,
               right: 20,
               child: GestureDetector(
-                onTap:
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SettingsPage()),
-                    ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                ),
                 child: Image.asset('assets/images/Setting.png', width: 50),
               ),
             ),
@@ -160,22 +159,22 @@ class _FeatureButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Column(
-      children: [
-        Image.asset(image, width: 140),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'LaBelleAurore',
-            fontSize: 40,
-            color: Colors.white,
-          ),
+        onTap: onTap,
+        child: Column(
+          children: [
+            Image.asset(image, width: 140),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'LaBelleAurore',
+                fontSize: 40,
+                color: Colors.white,
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 // ── BottomBar 元件 ──
@@ -193,9 +192,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: InkWell(
-      onTap: onTap,
-      child: Center(child: Image.asset(img, width: size)),
-    ),
-  );
+        child: InkWell(
+          onTap: onTap,
+          child: Center(child: Image.asset(img, width: size)),
+        ),
+      );
 }

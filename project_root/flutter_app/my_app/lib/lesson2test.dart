@@ -1,42 +1,37 @@
 import 'package:flutter/material.dart';
-import 'learn.dart'; // ← 直接回到 LearnPage 用
+import 'learn.dart'; // 回到 LearnPage
 
-class Lesson1Test2Page extends StatefulWidget {
-  const Lesson1Test2Page({super.key});
+class Lesson2TestPage extends StatefulWidget {
+  const Lesson2TestPage({super.key});
   @override
-  State<Lesson1Test2Page> createState() => _Lesson1Test2PageState();
+  State<Lesson2TestPage> createState() => _Lesson2TestPageState();
 }
 
-class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
-  // 調這個就能改圖片大小
-  static const double kImageMaxWidth = 280;
-  static const String kImage = 'assets/images/test2.png';
+class _Lesson2TestPageState extends State<Lesson2TestPage> {
+  // 圖片：le2 test2（檔名含空白 OK）
+  static const String kImage = 'assets/images/le2 test2.png';
+  static const double kImageMaxWidth = 280; // 想更小就調這裡
 
-  // 答案（不分大小寫）
+  // 題目標籤（只有 1~6）
+  final List<String> _labels = const ['1', '2', '3', '4', '5', '6'];
+
+  // 正確答案（依序）：Am, B, C, Cadd9, Em, G
   final Map<String, String> _answerKey = const {
-    '1': 'D',
-    '2': 'A',
-    '3': 'E',
-    '4': 'G',
-    '5': 'B',
-    '6': 'E',
-    'a': 'E',
-    'b': 'A',
-    'c': 'D',
-    'd': 'G',
-    'e': 'B',
-    'f': 'E',
+    '1': 'Am',
+    '2': 'B',
+    '3': 'C',
+    '4': 'Cadd9',
+    '5': 'Em',
+    '6': 'G',
   };
 
-  late final List<String> _keys;
   final Map<String, TextEditingController> _controllers = {};
   bool _submitted = false;
 
   @override
   void initState() {
     super.initState();
-    _keys = ['1', '2', '3', '4', '5', '6', 'a', 'b', 'c', 'd', 'e', 'f'];
-    for (final k in _keys) {
+    for (final k in _labels) {
       _controllers[k] = TextEditingController();
     }
   }
@@ -49,40 +44,39 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
     super.dispose();
   }
 
-  String _norm(String s) => s.trim().toUpperCase();
+  // 忽略大小寫與空白
+  String _norm(String s) =>
+      s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '');
 
   bool _isCorrect(String key) {
     final user = _norm(_controllers[key]!.text);
     final ans = _norm(_answerKey[key] ?? '');
-    return user.isNotEmpty && user == ans;
+    return user.isNotEmpty && ans.isNotEmpty && user == ans;
   }
 
-  int get _correctCount => _keys.where(_isCorrect).length;
+  int get _correctCount => _labels.where(_isCorrect).length;
 
   int get _stars {
-    final c = _correctCount; // 12 題
-    if (c >= 12) return 3;
-    if (c >= 10) return 2;
-    if (c >= 8) return 1;
+    // 6題：6=★3、5=★2、4=★1
+    final c = _correctCount;
+    if (c >= 6) return 3;
+    if (c == 5) return 2;
+    if (c == 4) return 1;
     return 0;
   }
 
   void _reset() {
-    for (final c in _controllers.values) {
-      c.clear();
-    }
+    for (final c in _controllers.values) c.clear();
     setState(() => _submitted = false);
   }
 
-  InputDecoration _decorationFor(String label, String key) {
-    Color border;
-    if (_submitted) {
-      border = _isCorrect(key) ? Colors.greenAccent : Colors.redAccent;
-    } else {
-      border = Colors.white24;
-    }
+  InputDecoration _decor(String key) {
+    final bool ok = _isCorrect(key);
+    final Color border = _submitted
+        ? (ok ? Colors.greenAccent : Colors.redAccent)
+        : Colors.white24;
     return InputDecoration(
-      labelText: label,
+      labelText: '$key.',
       labelStyle: const TextStyle(color: Colors.white70),
       filled: true,
       fillColor: const Color(0x22000000),
@@ -98,14 +92,14 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
     );
   }
 
-  Widget _field(String label, String key) {
+  Widget _field(String key) {
     return TextField(
       controller: _controllers[key],
       enabled: !_submitted,
-      maxLength: 1,
-      style: const TextStyle(color: Colors.white),
+      maxLength: 10, // Cadd9 也夠用
       textAlign: TextAlign.center,
-      decoration: _decorationFor(label, key).copyWith(counterText: ''),
+      style: const TextStyle(color: Colors.white),
+      decoration: _decor(key).copyWith(counterText: ''),
     );
   }
 
@@ -116,7 +110,7 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Lesson 1 Test 2（指板配對）'),
+        title: const Text('Lesson 2 Test'),
       ),
       body: SafeArea(
         child: Padding(
@@ -124,7 +118,7 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 左側：圖片（可用 kImageMaxWidth 控制）
+              // 左：考圖
               Flexible(
                 flex: 3,
                 child: Center(
@@ -138,38 +132,21 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
                 ),
               ),
               const SizedBox(width: 16),
-              // 右側：輸入欄位
+              // 右：填答
               Flexible(
                 flex: 2,
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text('請輸入對應字母（可小寫）',
+                      const Text('請輸入對應和弦（大小寫/空白皆可）',
                           style: TextStyle(color: Colors.white70)),
                       const SizedBox(height: 12),
-
-                      // 區塊 1: 1~6
-                      const Text('數字題（1–6）',
-                          style: TextStyle(color: Colors.white)),
-                      const SizedBox(height: 8),
-                      for (final k in ['1', '2', '3', '4', '5', '6'])
+                      for (final k in _labels)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
-                          child: _field('$k.', k),
+                          child: _field(k),
                         ),
-
-                      const SizedBox(height: 8),
-                      // 區塊 2: a~f
-                      const Text('字母題（a–f）',
-                          style: TextStyle(color: Colors.white)),
-                      const SizedBox(height: 8),
-                      for (final k in ['a', 'b', 'c', 'd', 'e', 'f'])
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _field('$k.', k),
-                        ),
-
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -185,7 +162,7 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
                                 ),
                               ),
                               onPressed: () {
-                                final allFilled = _keys.every(
+                                final allFilled = _labels.every(
                                   (k) =>
                                       _controllers[k]!.text.trim().isNotEmpty,
                                 );
@@ -218,12 +195,11 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
                           ),
                         ],
                       ),
-
                       if (_submitted) ...[
                         const SizedBox(height: 12),
                         Center(
                           child: Text(
-                            '答對：$_correctCount / 12',
+                            '答對：$_correctCount / ${_labels.length}',
                             style: const TextStyle(
                                 color: Colors.white, fontSize: 16),
                           ),
@@ -245,7 +221,7 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
                           }),
                         ),
                         const SizedBox(height: 10),
-                        // 直接回到 LearnPage（清空堆疊）
+                        // 回到 Learn
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -260,10 +236,8 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
                             onPressed: () {
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const LearnPage(), // ← 若類名不同請改
-                                ),
-                                (route) => false, // 清空所有路由
+                                    builder: (_) => const LearnPage()),
+                                (route) => false,
                               );
                             },
                             child: const Text('回到 Learn'),

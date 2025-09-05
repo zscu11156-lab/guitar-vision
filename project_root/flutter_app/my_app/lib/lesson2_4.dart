@@ -6,6 +6,7 @@ import 'flip_page_route.dart';
 import 'tuner.dart';
 import 'chordchart.dart';
 import 'member.dart';
+import 'lesson2test.dart';
 
 class Lesson2Page4 extends StatelessWidget {
   const Lesson2Page4({super.key});
@@ -87,7 +88,7 @@ class Lesson2Page4 extends StatelessWidget {
                 child: Image.asset('assets/images/Setting.png', width: 50),
               ),
             ),
-            // 底部左右箭頭
+            // 底部左箭頭（上一頁）
             Positioned(
               left: 24,
               bottom: 110,
@@ -101,6 +102,35 @@ class Lesson2Page4 extends StatelessWidget {
                     FlipPageRoute(child: const Lesson2Page3()),
                   );
                 },
+              ),
+            ),
+            // 底部右側 "test" 按鈕（跳到 Lesson2TestPage）
+            Positioned(
+              right: 24,
+              bottom: 110, // 與左箭頭同高，避免被底部導覽列擋住
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white, width: 2),
+                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0xAA000000),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    FlipPageRoute(child: const Lesson2TestPage()),
+                  );
+                  // 若要改用一般轉場：
+                  // Navigator.push(context, MaterialPageRoute(builder: (_) => const Lesson2TestPage()));
+                },
+                child: const Text(
+                  'test',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, letterSpacing: 1.0),
+                ),
               ),
             ),
           ],
