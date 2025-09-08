@@ -1,13 +1,24 @@
-// lib/camera_qingtian.dart
+// lib/camera1.dart
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img; // 用於校正方向/水平反轉
 
-// 呼叫後端 /predict，用你之前做好的 lib/api.dart
+// 呼叫後端 /predict
 import 'api.dart';
+// 新增：評分後導向和弦總表
+import 'chordchart.dart';
+
+/// ---- 和弦時間軸事件（頂層宣告；Dart 不支援巢狀 class）----
+class _ChordEvt {
+  final Duration start;
+  final Duration end;
+  final String chord;
+  const _ChordEvt(this.start, this.end, this.chord);
+}
 
 class camera1 extends StatefulWidget {
   const camera1({super.key});
@@ -44,298 +55,333 @@ class _CameraQingtianPageState extends State<camera1> {
   final Map<String, int> _attemptsByChord = {}; // 每個目標和弦的嘗試次數
   final Map<String, int> _correctByChord  = {}; // 每個目標和弦的正確次數
 
+  // ---- 歌曲資料（可先不加 offsetMs；程式會等分）----
   final List<Map<String, dynamic>> songData = const [
     {
       "time": Duration(seconds: 29),
       "lyrics": "故事的小黃花",
       "chords": [
-        {"pos": 0, "chord": "Em7"},
-        {"pos": 3, "chord": "Cadd9"},
+        {"pos": 0, "chord": "Em7","offsetMs":0},
+        {"pos": 3, "chord": "Cadd9","offsetMs":1116},
       ],
     },
     {
       "time": Duration(seconds: 32),
       "lyrics": "從出生那年就飄著",
       "chords": [
-        {"pos": 0, "chord": "G"},
-        {"pos": 6, "chord": "D/F#"},
+        {"pos": 0, "chord": "G","offsetMs":0},
+        {"pos": 6, "chord": "D/F#","offsetMs":3000},
       ],
     },
     {
       "time": Duration(seconds: 36),
       "lyrics": "童年的盪鞦韆",
       "chords": [
-        {"pos": 0, "chord": "Em7"},
-        {"pos": 4, "chord": "Cadd9"},
+        {"pos": 0, "chord": "Em7","offsetMs":0},
+        {"pos": 4, "chord": "Cadd9","offsetMs":1900},
       ],
     },
     {
       "time": Duration(seconds: 39),
       "lyrics": "隨記憶一直晃到現在",
       "chords": [
-        {"pos": 0, "chord": "G"},
-        {"pos": 7, "chord": "D/F#"},
+        {"pos": 0, "chord": "G","offsetMs":0},
+        {"pos": 7, "chord": "D/F#","offsetMs":2200},
       ],
     },
     {
       "time": Duration(seconds: 42),
       "lyrics": "ㄖㄨㄟㄙㄡㄙㄡㄒ一ㄉㄛㄒ一ㄌㄚ",
       "chords": [
-        {"pos": 0, "chord": "Em7"},
-        {"pos": 9, "chord": "Cadd9"},
+        {"pos": 0, "chord": "Em7","offsetMs":0},
+        {"pos": 9, "chord": "Cadd9","offsetMs":2200},
       ],
     },
     {
       "time": Duration(seconds: 45),
       "lyrics": "ㄙㄡㄌㄚㄒ一ㄒ一ㄒ一ㄒ一ㄌㄚㄒ一ㄌㄚㄙㄡ",
       "chords": [
-        {"pos": 4, "chord": "G"},
-        {"pos": 18, "chord": "D/F#"},
+        {"pos": 4, "chord": "G","offsetMs":1200},
+        {"pos": 18, "chord": "D/F#","offsetMs":4000},
       ],
     },
     {
       "time": Duration(seconds: 49),
       "lyrics": "吹著前奏望著天空",
       "chords": [
-        {"pos": 0, "chord": "Em7"},
-        {"pos": 4, "chord": "Cadd9"},
+        {"pos": 0, "chord": "Em7","offsetMs":0},
+        {"pos": 4, "chord": "Cadd9","offsetMs":2200},
       ],
     },
     {
       "time": Duration(seconds: 53),
       "lyrics": "我想起花瓣試著掉落",
       "chords": [
-        {"pos": 1, "chord": "G"},
-        {"pos": 8, "chord": "D/F#"},
+        {"pos": 1, "chord": "G","offsetMs":150},
+        {"pos": 8, "chord": "D/F#","offsetMs":3000},
       ],
     },
     {
       "time": Duration(seconds: 56),
       "lyrics": "為妳翹課的那一天",
       "chords": [
-        {"pos": 1, "chord": "Em7"},
+        {"pos": 1, "chord": "Em7","offsetMs":1000},
       ],
     },
     {
       "time": Duration(seconds: 59),
       "lyrics": "花落的那一天 ",
       "chords": [
-        {"pos": 0, "chord": "Cadd9"},
-        {"pos": 6, "chord": "G"},
+        {"pos": 0, "chord": "Cadd9","offsetMs":0},
+        {"pos": 6, "chord": "G","offsetMs":1100},
       ],
     },
     {
       "time": Duration(seconds: 60),
       "lyrics": "教室的那一間",
-      "chords": [
-      ],
+      "chords": [],
     },
     {
       "time": Duration(seconds: 62),
       "lyrics": "我怎麼看不見",
       "chords": [
-        {"pos": 3, "chord": "D/F#"},
+        {"pos": 3, "chord": "D/F#","offsetMs":1000},
       ],
     },
     {
       "time": Duration(seconds: 64),
       "lyrics": "消失的下雨天",
       "chords": [
-        {"pos": 0, "chord": "Em7"},
+        {"pos": 0, "chord": "Em7","offsetMs":0},
       ],
     },
     {
       "time": Duration(seconds: 66),
       "lyrics": "我好想再淋一遍- - ",
       "chords": [
-        {"pos": 0, "chord": "Cadd9"},
-        {"pos": 6, "chord": "Cadd9"},
-        {"pos": 10, "chord": "D/F#"},
+        {"pos": 0, "chord": "Cadd9","offsetMs":0},
+        {"pos": 6, "chord": "G","offsetMs":1100},
+        {"pos": 10, "chord": "D/F#","offsetMs":4000},
       ],
     },
     {
       "time": Duration(seconds: 70),
       "lyrics": "沒想到失去的勇氣我還留著",
       "chords": [
-        {"pos": 4, "chord": "Em7"},
-        {"pos": 8, "chord": "Cadd9"},
-        {"pos": 11, "chord": "G"},
+        {"pos": 4, "chord": "Em7","offsetMs":1115},
+        {"pos": 8, "chord": "Cadd9","offsetMs":2226},
+        {"pos": 11, "chord": "G","offsetMs":4030},
       ],
     },
     {
       "time": Duration(seconds: 76),
       "lyrics": "好想再問一遍",
       "chords": [
-        {"pos": 4, "chord": "D/F#"},
-      ],
-    },
-     {
-      "time": Duration(seconds: 78),
-      "lyrics": "你會等待還是離開- - ",
-      "chords": [
-        {"pos": 0, "chord": "Em7"},
-        {"pos": 4, "chord": "Cadd9"},
-        {"pos": 8, "chord": "Dsus4"},
-        {"pos": 10, "chord": "D"},
+        {"pos": 4, "chord": "D/F#","offsetMs":1300},
       ],
     },
     {
-      "time": Duration(seconds: 84),
+      "time": Duration(seconds: 78),
+      "lyrics": "你會等待還是離開- - ",
+      "chords": [
+        {"pos": 0, "chord": "Em7","offsetMs":0},
+        {"pos": 4, "chord": "Cadd9","offsetMs":1124},
+        {"pos": 8, "chord": "Dsus4","offsetMs":3100},
+        {"pos": 10, "chord": "D","offsetMs":4417},
+      ],
+    },
+    {
+      "time": Duration(seconds: 85),
       "lyrics": "颳風這天",
       "chords": [
-        {"pos": 0, "chord": "G"},
+        {"pos": 0, "chord": "G","offsetMs":0},
       ],
     },
     {
       "time": Duration(seconds: 87),
       "lyrics": "我試過握著你手",
       "chords": [
-        {"pos": 3, "chord": "Em7"},
+        {"pos": 3, "chord": "Em7","offsetMs":1223},
       ],
     },
     {
       "time": Duration(seconds: 90),
       "lyrics": "但偏偏 雨漸漸 ",
       "chords": [
-        {"pos": 3, "chord": "C"},
-        {"pos": 7, "chord": "D"},
+        {"pos": 3, "chord": "C","offsetMs":1280},
+        {"pos": 7, "chord": "D","offsetMs":3240},
       ],
     },
     {
       "time": Duration(seconds: 94),
       "lyrics": "大到我看妳不見",
       "chords": [
-        {"pos": 3, "chord": "G"},
+        {"pos": 3, "chord": "G","offsetMs":1170},
       ],
     },
     {
       "time": Duration(seconds: 98),
       "lyrics": "還要多久",
       "chords": [
-        {"pos": 0, "chord": "B"},
+        {"pos": 0, "chord": "B","offsetMs":0},
       ],
     },
     {
       "time": Duration(seconds: 101),
       "lyrics": "我才能在你身邊",
       "chords": [
-        {"pos": 3, "chord": "Em7"},
+        {"pos": 3, "chord": "Em7","offsetMs":1223},
       ],
     },
     {
       "time": Duration(seconds: 105),
       "lyrics": "等到放晴的那天",
       "chords": [
-        {"pos": 1, "chord": "C"},
+        {"pos": 1, "chord": "C","offsetMs":1000},
       ],
     },
     {
       "time": Duration(seconds: 108),
       "lyrics": "也許我會比較好一點",
       "chords": [
-        {"pos": 2, "chord": "Dsus4"},
-        {"pos": 6, "chord": "D"},
+        {"pos": 2, "chord": "Dsus4","offsetMs":1120},
+        {"pos": 6, "chord": "D","offsetMs":3000},
       ],
     },
     {
       "time": Duration(seconds: 112),
       "lyrics": "從前從前",
       "chords": [
-        {"pos": 0, "chord": "G"},
+        {"pos": 0, "chord": "G","offsetMs":0},
       ],
     },
     {
       "time": Duration(seconds: 115),
       "lyrics": "有個人愛妳很久",
       "chords": [
-        {"pos": 3, "chord": "Em7"},
+        {"pos": 3, "chord": "Em7","offsetMs":1223},
       ],
     },
     {
       "time": Duration(seconds: 118),
       "lyrics": "但偏偏 風漸漸 ",
       "chords": [
-        {"pos": 3, "chord": "C"},
-        {"pos": 7, "chord": "D"},
-       
+        {"pos": 3, "chord": "C","offsetMs":1280},
+        {"pos": 7, "chord": "D","offsetMs":3240},
       ],
     },
     {
       "time": Duration(seconds: 122),
       "lyrics": "把距離吹得好遠",
       "chords": [
-        {"pos": 3, "chord": "Em7"},
+        {"pos": 3, "chord": "G","offsetMs":1170},
       ],
     },
     {
       "time": Duration(seconds: 126),
       "lyrics": "好不容易",
       "chords": [
-        {"pos": 0, "chord": "B"},
+        {"pos": 0, "chord": "B","offsetMs":0},
       ],
     },
     {
       "time": Duration(seconds: 129),
       "lyrics": "又能再多愛一天",
       "chords": [
-        {"pos": 3, "chord": "Em7"},
+        {"pos": 3, "chord": "Em7","offsetMs":1223},
       ],
     },
     {
       "time": Duration(seconds: 133),
       "lyrics": "但故事的最後",
       "chords": [
-        {"pos": 1, "chord": "C"},
+        {"pos": 1, "chord": "C","offsetMs":1000},
       ],
     },
     {
       "time": Duration(seconds: 136),
       "lyrics": "你好像還是說了 掰掰",
       "chords": [
-        {"pos": 3, "chord": "Dsus4"},
-        {"pos": 7, "chord": "D"},
-        {"pos": 9, "chord": "G"},
+        {"pos": 3, "chord": "Dsus4","offsetMs":1120},
+        {"pos": 7, "chord": "D","offsetMs":3000},
+        {"pos": 9, "chord": "G","offsetMs":3350},
       ],
     },
   ];
 
-// 狀態（保留）
+  // ---- 狀態（保留）----
   int currentLineIndex = 0;
   String currentChord = "";
   final ScrollController _scroll = ScrollController();
   static const double _lineHeight = 96.0;
   double x = 16, y = 420;
 
+  // ---- 時間軸 & 播放位置 ----
+  Duration _lastPos = Duration.zero;
+  List<_ChordEvt> _timeline = [];
+  int _evtIdx = 0;
+  _ChordEvt? _activeEvt;
+  static const int _graceMs = 250;
+
+  // 斜線與常見別名標準化
+  static const Map<String, String> _aliases = {
+    'D/F#': 'D_F#',
+    'D7/F#': 'D7_F#',
+  };
+
   @override
   void initState() {
     super.initState();
-    _initCamera();
+
+    // 建立「無縫」和弦時間軸（上一顆撐到下一顆；支援 offsetMs；沒有就等分）
+    _timeline = _buildTimeline(songData);
+    _evtIdx = 0;
+    _activeEvt = null;
+
+    _initCamera(prefer: CameraLensDirection.front); // 預設前鏡頭
     _resetMetrics();
     _startAudioAndListen('audio/songs/晴天.MP3');
   }
 
   // ---------- 相機 ----------
-  Future<void> _initCamera() async {
+  Future<void> _initCamera({CameraLensDirection prefer = CameraLensDirection.front}) async {
     try {
       final cameras = await availableCameras();
-      if (cameras.isNotEmpty) {
-        _controller = CameraController(
-          cameras.first, ResolutionPreset.medium,
-          enableAudio: false,
-        );
-        await _controller!.initialize();
-        if (!mounted) return;
-        setState(() => _camReady = true);
+      if (cameras.isEmpty) return;
 
-        // 相機就緒後，啟動固定頻率推論
-        _inferTimer?.cancel();
-        _inferTimer = Timer.periodic(
-          const Duration(milliseconds: 600), (_) => _captureAndPredict(),
-        );
-      }
+      final cam = cameras.firstWhere(
+        (c) => c.lensDirection == prefer,
+        orElse: () => cameras.first,
+      );
+
+      await _controller?.dispose();
+
+      _controller = CameraController(
+        cam, ResolutionPreset.medium,
+        enableAudio: false,
+      );
+      await _controller!.initialize();
+      if (!mounted) return;
+      setState(() => _camReady = true);
+
+      // 相機就緒後，啟動固定頻率推論
+      _inferTimer?.cancel();
+      _inferTimer = Timer.periodic(
+        const Duration(milliseconds: 600), (_) => _captureAndPredict(),
+      );
     } catch (e) {
       debugPrint('相機初始化失敗: $e');
     }
+  }
+
+  Future<void> _switchCamera() async {
+    if (!mounted) return;
+    final current = _controller?.description.lensDirection ?? CameraLensDirection.front;
+    final next = (current == CameraLensDirection.back)
+        ? CameraLensDirection.front
+        : CameraLensDirection.back;
+    setState(() => _camReady = false);
+    await _initCamera(prefer: next);
   }
 
   // ---------- 音訊 ----------
@@ -351,9 +397,9 @@ class _CameraQingtianPageState extends State<camera1> {
         await _player.setSourceAsset(rel);
       }
 
-      // 開始播放並監聽位置，更新當前歌詞行與應彈和弦
+      // 開始播放並監聽位置（改用 _onPos）
       await _player.resume();
-      _posSub = _player.onPositionChanged.listen(_updateCurrentLineAndChord);
+      _posSub = _player.onPositionChanged.listen(_onPos);
 
       // 歌曲播放完畢→進入成績頁
       _player.onPlayerComplete.listen((_) {
@@ -380,26 +426,44 @@ class _CameraQingtianPageState extends State<camera1> {
     _correctByChord.clear();
   }
 
-  // ---------- 依歌曲時間更新應彈和弦（保持你原邏輯：取該行第一個和弦） ----------
-  void _updateCurrentLineAndChord(Duration pos) {
+  // ---------- 位置更新（以時間軸同步） ----------
+  void _onPos(Duration pos) {
+    _lastPos = pos;
+    _syncExpectedByTimeline(pos);
+  }
+
+  void _syncExpectedByTimeline(Duration pos) {
+    if (_timeline.isEmpty) return;
+
+    // 用 _evtIdx 做雙向滑動，避免每次從頭找
+    while (_evtIdx + 1 < _timeline.length && pos >= _timeline[_evtIdx].end) {
+      _evtIdx++;
+    }
+    while (_evtIdx > 0 && pos < _timeline[_evtIdx].start) {
+      _evtIdx--;
+    }
+
+    final evt = _timeline[_evtIdx];
+    final bool inEvt = (pos >= evt.start && pos < evt.end);
+
+    if (inEvt) {
+      _activeEvt = evt;
+      if (evt.chord != currentChord) {
+        setState(() => currentChord = evt.chord); // 顯示保留原字串（不強制轉 alias）
+      }
+    } else {
+      // 不在任何事件內：保留畫面上的和弦，不清空（直到下一顆出現才換）
+      _activeEvt = null; // 評分仍只在事件內進行
+    }
+
+    // 歌詞行同步（仍用每行的 time）
     int newLine = 0;
     for (int i = 0; i < songData.length; i++) {
       final t = songData[i]['time'] as Duration;
       if (pos >= t) newLine = i;
     }
-    String newChord = "";
-    for (int i = 0; i < songData.length; i++) {
-      final t = songData[i]['time'] as Duration;
-      if (pos >= t) {
-        final lc = songData[i]['chords'] as List<dynamic>;
-        if (lc.isNotEmpty) newChord = lc[0]['chord'] as String;
-      }
-    }
-    if (newLine != currentLineIndex || newChord != currentChord) {
-      setState(() {
-        currentLineIndex = newLine;
-        currentChord = newChord;
-      });
+    if (newLine != currentLineIndex) {
+      setState(() => currentLineIndex = newLine);
       _scrollToCurrentLine();
     }
   }
@@ -424,11 +488,20 @@ class _CameraQingtianPageState extends State<camera1> {
 
       // 取一張 JPEG 並用 bytes 上傳
       final shot = await _controller!.takePicture();
-      final Uint8List bytes = await shot.readAsBytes();
+      Uint8List bytes = await shot.readAsBytes();
+
+      // 校正 EXIF + 前鏡頭水平反轉（避免鏡像）
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null) {
+        img.Image fixed = img.bakeOrientation(decoded);
+        if (_controller!.description.lensDirection == CameraLensDirection.front) {
+          fixed = img.flipHorizontal(fixed);
+        }
+        bytes = Uint8List.fromList(img.encodeJpg(fixed, quality: 90));
+      }
 
       final res = await Api.predictBytes(bytes);
       final label = (res['chord'] ?? '').toString();
-      final serverMs = (res['inference_ms'] ?? 0) as num; // 後端推論時間
       final clientMs = DateTime.now().millisecondsSinceEpoch - t0; // 端到端
 
       _latencySumMs += clientMs;
@@ -440,21 +513,26 @@ class _CameraQingtianPageState extends State<camera1> {
       final majority = _majority(_predHist);
       _detected = majority;
 
-      // 統計（只有當前有指定目標和弦時才計）
-      final expected = _norm(currentChord);
-      if (expected.isNotEmpty) {
-        _framesConsidered += 1;
-        _attemptsByChord[expected] = (_attemptsByChord[expected] ?? 0) + 1;
+      // ---- 計分（只在目前有和弦區間，且超過緩衝期才計）----
+      final expected = (_activeEvt == null) ? "" : _norm(_activeEvt!.chord);
+      if (_activeEvt != null && expected.isNotEmpty) {
+        final msInto = (_lastPos - _activeEvt!.start).inMilliseconds;
+        final inGrace = msInto < _graceMs;
 
-        final got = _norm(_detected);
-        if (got.isNotEmpty && got == expected) {
-          _framesCorrect += 1;
-          _correctByChord[expected] = (_correctByChord[expected] ?? 0) + 1;
-          _okStreak += 1;
-          if (_okStreak > _longestStreak) _longestStreak = _okStreak;
-        } else {
-          _framesWrong += 1;
-          _okStreak = 0;
+        if (!inGrace) {
+          _framesConsidered += 1;
+          _attemptsByChord[expected] = (_attemptsByChord[expected] ?? 0) + 1;
+
+          final got = _norm(_detected);
+          if (got.isNotEmpty && got == expected) {
+            _framesCorrect += 1;
+            _correctByChord[expected] = (_correctByChord[expected] ?? 0) + 1;
+            _okStreak += 1;
+            if (_okStreak > _longestStreak) _longestStreak = _okStreak;
+          } else {
+            _framesWrong += 1;
+            _okStreak = 0;
+          }
         }
       } else {
         _okStreak = 0;
@@ -477,9 +555,12 @@ class _CameraQingtianPageState extends State<camera1> {
     return m.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
   }
 
-  String _norm(String s) => s.replaceAll('/', '_').trim();
+  String _norm(String s) {
+    s = s.trim().replaceAll('/', '_');
+    return _aliases[s] ?? s;
+  }
 
-  // ---------- 完成並顯示成績 ----------
+  // ---------- 完成並顯示成績（改：僅顯示成績；點和弦導向 chordchart.dart） ----------
   Future<void> _finishAndShowScore() async {
     try {
       _inferTimer?.cancel();
@@ -508,10 +589,10 @@ class _CameraQingtianPageState extends State<camera1> {
       ),
     ));
 
-    // 回到頁面如需再玩一次，可在這裡重置並重新播放
+    // 回到頁面後：單純重置並繼續
     _resetMetrics();
     try {
-      await _player.resume(); // 也可改成不自動重播
+      await _player.resume();
       _inferTimer ??=
           Timer.periodic(const Duration(milliseconds: 600), (_) => _captureAndPredict());
     } catch (_) {}
@@ -541,6 +622,11 @@ class _CameraQingtianPageState extends State<camera1> {
         title: const Text('周杰倫 - 晴天'),
         backgroundColor: Colors.black,
         actions: [
+          IconButton(
+            tooltip: '切換前/後鏡頭',
+            icon: const Icon(Icons.cameraswitch),
+            onPressed: _switchCamera,
+          ),
           TextButton(
             onPressed: _finishAndShowScore,
             child: const Text('結束並看成績', style: TextStyle(color: Colors.white)),
@@ -627,7 +713,13 @@ class _CameraQingtianPageState extends State<camera1> {
                   child: SizedBox(
                     width: 160,
                     height: 120,
-                    child: CameraPreview(_controller!),
+                    child: Transform(
+                      alignment: Alignment.center,
+                      transform: (_controller?.description.lensDirection == CameraLensDirection.front)
+                          ? (Matrix4.identity()..scale(-1.0, 1.0, 1.0)) // 前鏡頭預覽水平反轉
+                          : Matrix4.identity(),
+                      child: CameraPreview(_controller!),
+                    ),
                   ),
                 ),
               ),
@@ -693,6 +785,62 @@ class _CameraQingtianPageState extends State<camera1> {
       ),
     );
   }
+
+  // ---- 把 songData 轉成「無縫」時間軸（上一顆撐到下一顆；支援 offsetMs；沒有就等分）----
+  List<_ChordEvt> _buildTimeline(List<Map<String, dynamic>> data) {
+    final points = <MapEntry<Duration, String>>[];
+    Duration lastLineEnd = Duration.zero;
+
+    for (int i = 0; i < data.length; i++) {
+      final Duration t0 = data[i]['time'] as Duration;
+      final Duration t1 = (i + 1 < data.length)
+          ? data[i + 1]['time'] as Duration
+          : t0 + const Duration(seconds: 4); // 歌尾預設留 4 秒
+      lastLineEnd = t1;
+
+      final chords = (data[i]['chords'] as List).cast<Map<String, dynamic>>();
+      if (chords.isEmpty) continue;
+
+      final hasOffsets = chords.every((c) => c.containsKey('offsetMs'));
+      if (hasOffsets) {
+        for (final c in chords) {
+          final start = t0 + Duration(milliseconds: (c['offsetMs'] as int));
+          final chord = (c['chord'] as String); // 顯示保留原字串
+          points.add(MapEntry(start, chord));
+        }
+      } else {
+        // 沒 offsetMs → 這一行平均切，但後面仍會「撐到下一顆」避免空窗
+        final segMs = (t1 - t0).inMilliseconds / chords.length;
+        for (int j = 0; j < chords.length; j++) {
+          final start = t0 + Duration(milliseconds: (j * segMs).round());
+          final chord = (chords[j]['chord'] as String);
+          points.add(MapEntry(start, chord));
+        }
+      }
+    }
+
+    if (points.isEmpty) return [];
+
+    points.sort((a, b) => a.key.compareTo(b.key));
+
+    // 同一時間點若有重複，只保留最後一筆
+    final dedup = <MapEntry<Duration, String>>[];
+    for (final p in points) {
+      if (dedup.isNotEmpty && dedup.last.key == p.key) {
+        dedup.removeLast();
+      }
+      dedup.add(p);
+    }
+
+    final out = <_ChordEvt>[];
+    for (int i = 0; i < dedup.length; i++) {
+      final start = dedup[i].key;
+      final end = (i + 1 < dedup.length) ? dedup[i + 1].key : lastLineEnd;
+      if (end <= start) continue; // 避免零長度
+      out.add(_ChordEvt(start, end, dedup[i].value));
+    }
+    return out;
+  }
 }
 
 class CameraQingtianFullScreen extends StatelessWidget {
@@ -701,10 +849,19 @@ class CameraQingtianFullScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isFront = controller.description.lensDirection == CameraLensDirection.front;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(children: [
-        Positioned.fill(child: CameraPreview(controller)),
+        Positioned.fill(
+          child: Transform(
+            alignment: Alignment.center,
+            transform: isFront
+                ? (Matrix4.identity()..scale(-1.0, 1.0, 1.0))
+                : Matrix4.identity(),
+            child: CameraPreview(controller),
+          ),
+        ),
         Positioned(
           top: 40,
           left: 16,
@@ -745,6 +902,23 @@ class _ChordScorePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = attemptsByChord.keys.toList()..sort();
+
+    // === 找出最弱和弦（跳過 att=0）；同準確率→取嘗試次數較多者 ===
+    String? worstChord;
+    double worstAcc = 1.0;
+    int worstAtt = -1;
+    for (final ch in items) {
+      final att = attemptsByChord[ch] ?? 0;
+      final cor = correctByChord[ch] ?? 0;
+      if (att <= 0) continue;
+      final acc = cor / att;
+      if (acc < worstAcc || (acc == worstAcc && att > worstAtt)) {
+        worstAcc = acc;
+        worstAtt = att;
+        worstChord = ch;
+      }
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -763,16 +937,43 @@ class _ChordScorePage extends StatelessWidget {
             _stat('正確 / 錯誤', '$correct / $wrong'),
             _stat('平均端到端延遲', '${avgLatencyMs.toStringAsFixed(0)} ms'),
             const Divider(color: Colors.white24, height: 24),
-            const Text('各和弦表現',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              '各和弦表現（點擊可前往和弦總表）',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
             const SizedBox(height: 8),
+
+            // === 可點擊的各和弦列 → 前往 chordchart.dart ===
             for (final chord in items)
-              _chordRow(
-                chord,
-                attemptsByChord[chord] ?? 0,
-                correctByChord[chord] ?? 0,
+              InkWell(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => ChordChart(selected: chord),
+                  ));
+                },
+                child: _chordRow(
+                  chord,
+                  attemptsByChord[chord] ?? 0,
+                  correctByChord[chord] ?? 0,
+                ),
               ),
+
             const SizedBox(height: 24),
+
+            // === 一鍵查看最弱和弦（導向和弦總表） ===
+            if (worstChord != null)
+              FilledButton(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => ChordChart(selected: worstChord),
+                  ));
+                },
+                child: Text('看最弱和弦：$worstChord（${(worstAcc * 100).toStringAsFixed(0)}%）'),
+              )
+            else
+              const Text('尚無可分析的和弦資料', style: TextStyle(color: Colors.white38)),
+
+            const SizedBox(height: 12),
             FilledButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('返回'),

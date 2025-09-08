@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:my_app/test.dart';
 import 'homepage.dart';
 import 'tuner.dart';
 import 'chordchart.dart';
 import 'member.dart';
 import 'mic_probe.dart';
-import 'login.dart'; // 👈 記得引入 LoginPage
+import 'login.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -54,7 +55,12 @@ class SettingsPage extends StatelessWidget {
                       );
                     },
                   ),
-                  _fullWidthButton('聯繫開發者', onTap: () {}),
+                  _fullWidthButton('PingPage', onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PingPage()),
+                    );
+                  }),
 
                   // 🔑 新增登出按鈕
                   _fullWidthButton(

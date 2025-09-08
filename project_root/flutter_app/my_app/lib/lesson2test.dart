@@ -212,14 +212,19 @@ class _Lesson2TestPageState extends State<Lesson2TestPage> {
                             return Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 4),
-                              child: Icon(
-                                filled ? Icons.star : Icons.star_border,
-                                color: Colors.amber,
-                                size: 26,
+                              child: Opacity(
+                                opacity: filled ? 1.0 : 0.25, // 沒拿到星星就淡化
+                                child: Image.asset(
+                                  'assets/images/star1.png', // 你的星星圖
+                                  width: 26,
+                                  height: 26,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             );
                           }),
                         ),
+
                         const SizedBox(height: 10),
                         // 回到 Learn
                         SizedBox(

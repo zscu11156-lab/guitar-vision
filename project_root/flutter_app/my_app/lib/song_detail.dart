@@ -65,7 +65,7 @@ class _SongDetailPageState extends State<SongDetailPage> {
     } else if (t.contains('好不容易')) {
       page = const camera3();
     } else if (t.contains('捲菸') || t.contains('卷菸')) {
-      page = const Camera2();
+      page = const camera2();
     } else {
       // 找不到就導到預設頁（你也可改成 Dialog 提醒）
       page = const SongPage();
