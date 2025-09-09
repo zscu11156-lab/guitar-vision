@@ -92,35 +92,51 @@ class Lesson1Page4 extends StatelessWidget {
                 child: Image.asset('assets/images/Setting.png', width: 50),
               ),
             ),
-            // 底部左右箭頭
+            // 底部左右箭頭（改成圖片）
             Positioned(
               left: 24,
               bottom: 110,
               child: IconButton(
-                iconSize: 32,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_back),
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
                     FlipPageRoute(child: const Lesson1Page3()),
                   );
                 },
+                icon: Image.asset(
+                  'assets/images/arrow l.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 若要著色可改為：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow l.png'), color: Colors.white70),
               ),
             ),
             Positioned(
               right: 24,
               bottom: 110,
               child: IconButton(
-                iconSize: 32,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_forward),
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
                     FlipPageRoute(child: const Lesson1Page5()),
                   );
                 },
+                icon: Image.asset(
+                  'assets/images/arrow r.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 若要著色可改為：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow r.png'), color: Colors.white70),
               ),
             ),
           ],

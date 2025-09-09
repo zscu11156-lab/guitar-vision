@@ -115,8 +115,20 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        automaticallyImplyLeading: false, // 不要預設返回箭頭
+        leading: IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          onPressed: () => Navigator.pop(context),
+          icon: Image.asset(
+            'assets/images/close.png', // ← 左上改成圖片 close
+            width: 24,
+            height: 24,
+            fit: BoxFit.contain,
+          ),
+        ),
         title: const Text('Lesson 1 Test 2（指板配對）'),
+        foregroundColor: Colors.white,
       ),
       body: SafeArea(
         child: Padding(
@@ -265,10 +277,9 @@ class _Lesson1Test2PageState extends State<Lesson1Test2Page> {
                             onPressed: () {
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const LearnPage(), // ← 若類名不同請改
+                                  builder: (_) => const LearnPage(),
                                 ),
-                                (route) => false, // 清空所有路由
+                                (route) => false,
                               );
                             },
                             child: const Text('回到 Learn'),

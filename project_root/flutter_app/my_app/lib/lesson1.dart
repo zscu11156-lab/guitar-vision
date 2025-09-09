@@ -1,4 +1,3 @@
-// lib/lesson1_1.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'settings.dart';
@@ -67,12 +66,7 @@ class _Lesson1PageState extends State<Lesson1Page> {
                         // 右側白字的 6 個熱區（座標為百分比：x,y,w,h）
                         _Hotspot(
                           id: 'tuners',
-                          rect: const Rect.fromLTWH(
-                            0.83,
-                            0.05,
-                            0.12,
-                            0.06,
-                          ), // 弦紐
+                          rect: const Rect.fromLTWH(0.83, 0.05, 0.12, 0.06),
                           isOpen: _open['tuners']!,
                           onTap: () => _toggle('tuners'),
                           bubbleText: '調整弦的鬆緊，改變音高；順時針轉音升高，逆時針轉音降低。',
@@ -82,12 +76,7 @@ class _Lesson1PageState extends State<Lesson1Page> {
                         ),
                         _Hotspot(
                           id: 'nut',
-                          rect: const Rect.fromLTWH(
-                            0.83,
-                            0.15,
-                            0.12,
-                            0.06,
-                          ), // 上琴枕
+                          rect: const Rect.fromLTWH(0.83, 0.15, 0.12, 0.06),
                           isOpen: _open['nut']!,
                           onTap: () => _toggle('nut'),
                           bubbleText: '固定每條弦的間距。',
@@ -97,12 +86,7 @@ class _Lesson1PageState extends State<Lesson1Page> {
                         ),
                         _Hotspot(
                           id: 'frets',
-                          rect: const Rect.fromLTWH(
-                            0.83,
-                            0.25,
-                            0.12,
-                            0.06,
-                          ), // 弦桁
+                          rect: const Rect.fromLTWH(0.83, 0.25, 0.12, 0.06),
                           isOpen: _open['frets']!,
                           onTap: () => _toggle('frets'),
                           bubbleText: '琴頸上橫著的金屬條，左手將弦按在上面以決定音高。',
@@ -114,51 +98,36 @@ class _Lesson1PageState extends State<Lesson1Page> {
                         // ↓↓↓ 下方三個：加入偏移讓泡泡不互蓋 ↓↓↓
                         _Hotspot(
                           id: 'soundhole',
-                          rect: const Rect.fromLTWH(
-                            0.83,
-                            0.63,
-                            0.12,
-                            0.06,
-                          ), // 響孔
+                          rect: const Rect.fromLTWH(0.83, 0.63, 0.12, 0.06),
                           isOpen: _open['soundhole']!,
                           onTap: () => _toggle('soundhole'),
                           bubbleText: '共鳴、放大聲音。',
                           imgW: imgW,
                           imgH: imgH,
                           preferLeft: true,
-                          bubbleOffset: const Offset(0, -42), // 往左一點、上移
+                          bubbleOffset: const Offset(0, -42),
                         ),
                         _Hotspot(
                           id: 'saddle',
-                          rect: const Rect.fromLTWH(
-                            0.83,
-                            0.75,
-                            0.12,
-                            0.06,
-                          ), // 下琴枕
+                          rect: const Rect.fromLTWH(0.83, 0.75, 0.12, 0.06),
                           isOpen: _open['saddle']!,
                           onTap: () => _toggle('saddle'),
                           bubbleText: '影響音準並傳導震動。',
                           imgW: imgW,
                           imgH: imgH,
-                          preferLeft: false, // 改到右邊
-                          bubbleOffset: const Offset(0, -10), // 略為上移
+                          preferLeft: false,
+                          bubbleOffset: const Offset(0, -10),
                         ),
                         _Hotspot(
                           id: 'bridge',
-                          rect: const Rect.fromLTWH(
-                            0.84,
-                            0.86,
-                            0.11,
-                            0.06,
-                          ), // 琴橋
+                          rect: const Rect.fromLTWH(0.84, 0.86, 0.11, 0.06),
                           isOpen: _open['bridge']!,
                           onTap: () => _toggle('bridge'),
                           bubbleText: '固定弦並把震動傳給琴身。',
                           imgW: imgW,
                           imgH: imgH,
-                          preferLeft: true, // 放左邊
-                          bubbleOffset: const Offset(-6, 40), // 往左微調並下移
+                          preferLeft: true,
+                          bubbleOffset: const Offset(-6, 40),
                         ),
                       ],
                     ),
@@ -180,20 +149,28 @@ class _Lesson1PageState extends State<Lesson1Page> {
               ),
             ),
 
-            // 右下：下一頁箭頭（前往 Lesson1_2，翻頁特效）
+            // 右下：下一頁（圖片 arrow r）
             Positioned(
               right: 20,
               bottom: 100, // 避開底部導覽列
               child: IconButton(
-                iconSize: 32,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_forward),
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () {
                   Navigator.push(
                     context,
                     FlipPageRoute(child: const Lesson1Page2()),
                   );
                 },
+                icon: Image.asset(
+                  'assets/images/arrow r.png', // ← 你的圖片
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 若想套色可改用：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow r.png'), color: Colors.white70),
               ),
             ),
           ],

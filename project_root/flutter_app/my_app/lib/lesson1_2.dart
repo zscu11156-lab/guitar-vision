@@ -1,4 +1,3 @@
-// lesson1_2.dart
 import 'package:flutter/material.dart';
 import 'homepage.dart';
 import 'settings.dart';
@@ -48,37 +47,54 @@ class Lesson1Page2 extends StatelessWidget {
               ),
             ),
 
-            // 左下返回箭頭（回 Lesson1Page1）
+            // 左下返回箭頭（回 Lesson1Page1）→ 換成圖片 arrow l.png
             Positioned(
               left: 24,
               bottom: 110,
               child: IconButton(
-                iconSize: 32,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_back),
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(), // 讓按鈕緊貼圖片大小
                 onPressed: () {
-                  // 想保留翻頁動畫就用 pushReplacement + FlipPageRoute
+                  // 保留翻頁動畫
                   Navigator.pushReplacement(
                     context,
                     FlipPageRoute(child: const Lesson1Page()),
                   );
-                  // 如果只想單純返回上一頁，也可改成：
-                  // Navigator.pop(context);
+                  // 若只想返回上一頁：Navigator.pop(context);
                 },
+                icon: Image.asset(
+                  'assets/images/arrow l.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 需要著色可以改為：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow l.png'), color: Colors.white70),
               ),
             ),
+
+            // 右下前往下一頁 → 換成圖片 arrow r.png
             Positioned(
               right: 24,
               bottom: 110,
               child: IconButton(
                 iconSize: 36,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_forward),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () {
-                  Navigator.of(
-                    context,
-                  ).push(FlipPageRoute(child: const Lesson1Page3()));
+                  Navigator.of(context).push(
+                    FlipPageRoute(child: const Lesson1Page3()),
+                  );
                 },
+                icon: Image.asset(
+                  'assets/images/arrow r.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 若要著色：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow r.png'), color: Colors.white70),
               ),
             ),
           ],

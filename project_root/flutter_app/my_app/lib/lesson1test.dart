@@ -95,9 +95,9 @@ class _Lesson1TestPageState extends State<Lesson1TestPage> {
         borderSide: BorderSide(color: border, width: 2),
         borderRadius: BorderRadius.circular(12),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.white, width: 2),
-        borderRadius: BorderRadius.circular(12),
+      focusedBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.white, width: 2),
+        borderRadius: BorderRadius.all(Radius.circular(12)),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
@@ -118,8 +118,20 @@ class _Lesson1TestPageState extends State<Lesson1TestPage> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: const Text('Lesson 1 Test（構造配對）'),
+        automaticallyImplyLeading: false, // 不要自動返回箭頭
+        leading: IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          onPressed: () => Navigator.pop(context),
+          icon: Image.asset(
+            'assets/images/close.png', // ← 左上改成圖片 close
+            width: 24,
+            height: 24,
+            fit: BoxFit.contain,
+          ),
+        ),
+        title: const Text('Lesson 1 Test（構造配對）',
+            style: TextStyle(color: Colors.white)),
       ),
       body: SafeArea(
         child: LayoutBuilder(
@@ -140,8 +152,9 @@ class _Lesson1TestPageState extends State<Lesson1TestPage> {
               children: [
                 for (int i = 1; i <= 5; i++)
                   Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _field(i)),
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _field(i),
+                  ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -201,10 +214,14 @@ class _Lesson1TestPageState extends State<Lesson1TestPage> {
                       final filled = i < _stars;
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Icon(
-                          filled ? Icons.star : Icons.star_border,
-                          color: Colors.amber,
-                          size: 26,
+                        child: Opacity(
+                          opacity: filled ? 1.0 : 0.25, // 沒拿到星星就淡化
+                          child: Image.asset(
+                            'assets/images/star1.png', // 你的星星圖
+                            width: 26,
+                            height: 26,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       );
                     }),
@@ -225,7 +242,8 @@ class _Lesson1TestPageState extends State<Lesson1TestPage> {
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                              builder: (_) => const Lesson1Test2Page()),
+                            builder: (_) => const Lesson1Test2Page(),
+                          ),
                           // 如果要用你的 FlipPageRoute：
                           // FlipPageRoute(child: const Lesson1Test2Page()),
                         );

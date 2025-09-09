@@ -23,15 +23,14 @@ class Lesson1Page3 extends StatelessWidget {
             // 主要內容
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
-              child: // 主要內容（只貼 Row 這段，其他維持不變）
-                  Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ← 左：圖片，往下 48
                   Expanded(
                     flex: 1,
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 48), // 想多一點就改這個數字
+                      padding: const EdgeInsets.only(top: 48),
                       child: AspectRatio(
                         aspectRatio: 1,
                         child: Image.asset(
@@ -48,7 +47,7 @@ class Lesson1Page3 extends StatelessWidget {
                   Expanded(
                     flex: 1,
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 96), // 右邊獨立控制
+                      padding: const EdgeInsets.only(top: 96),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: const [
@@ -97,34 +96,52 @@ class Lesson1Page3 extends StatelessWidget {
               ),
             ),
 
+            // 左下（返回上一頁）→ 圖片 arrow l.png
             Positioned(
               left: 24,
               bottom: 110,
               child: IconButton(
-                iconSize: 32,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_back),
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
                     FlipPageRoute(child: const Lesson1Page2()),
                   );
                 },
+                icon: Image.asset(
+                  'assets/images/arrow l.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 若要著色可改用：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow l.png'), color: Colors.white70),
               ),
             ),
-            // 右下：下一頁箭頭（導到 lesson2_2.dart）
+
+            // 右下（前往下一頁）→ 圖片 arrow r.png
             Positioned(
               right: 24,
               bottom: 110,
               child: IconButton(
                 iconSize: 36,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_forward),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () {
-                  Navigator.of(
-                    context,
-                  ).push(FlipPageRoute(child: const Lesson1Page4()));
+                  Navigator.of(context).push(
+                    FlipPageRoute(child: const Lesson1Page4()),
+                  );
                 },
+                icon: Image.asset(
+                  'assets/images/arrow r.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 若要著色可改用：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow r.png'), color: Colors.white70),
               ),
             ),
           ],
