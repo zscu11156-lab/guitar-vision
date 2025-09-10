@@ -88,20 +88,28 @@ class Lesson2Page4 extends StatelessWidget {
                 child: Image.asset('assets/images/Setting.png', width: 50),
               ),
             ),
-            // 底部左箭頭（上一頁）
+            // 底部左箭頭（上一頁）→ 改成圖片 arrow l.png
             Positioned(
               left: 24,
               bottom: 110,
               child: IconButton(
-                iconSize: 32,
-                color: Colors.white70,
-                icon: const Icon(Icons.arrow_back),
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
                     FlipPageRoute(child: const Lesson2Page3()),
                   );
                 },
+                icon: Image.asset(
+                  'assets/images/arrow l.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+                // 若要著色可改為：
+                // icon: const ImageIcon(AssetImage('assets/images/arrow l.png'), color: Colors.white70),
               ),
             ),
             // 底部右側 "test" 按鈕（跳到 Lesson2TestPage）
@@ -123,8 +131,6 @@ class Lesson2Page4 extends StatelessWidget {
                     context,
                     FlipPageRoute(child: const Lesson2TestPage()),
                   );
-                  // 若要改用一般轉場：
-                  // Navigator.push(context, MaterialPageRoute(builder: (_) => const Lesson2TestPage()));
                 },
                 child: const Text(
                   'test',

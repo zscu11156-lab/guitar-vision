@@ -110,6 +110,18 @@ class _Lesson2TestPageState extends State<Lesson2TestPage> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false, // 不顯示預設返回箭頭
+        leading: IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          onPressed: () => Navigator.pop(context),
+          icon: Image.asset(
+            'assets/images/close.png', // 左上自訂關閉圖
+            width: 24,
+            height: 24,
+            fit: BoxFit.contain,
+          ),
+        ),
         title: const Text('Lesson 2 Test'),
       ),
       body: SafeArea(
@@ -139,8 +151,10 @@ class _Lesson2TestPageState extends State<Lesson2TestPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text('請輸入對應和弦（大小寫/空白皆可）',
-                          style: TextStyle(color: Colors.white70)),
+                      const Text(
+                        '請輸入對應和弦（大小寫/空白皆可）',
+                        style: TextStyle(color: Colors.white70),
+                      ),
                       const SizedBox(height: 12),
                       for (final k in _labels)
                         Padding(
@@ -224,7 +238,6 @@ class _Lesson2TestPageState extends State<Lesson2TestPage> {
                             );
                           }),
                         ),
-
                         const SizedBox(height: 10),
                         // 回到 Learn
                         SizedBox(
