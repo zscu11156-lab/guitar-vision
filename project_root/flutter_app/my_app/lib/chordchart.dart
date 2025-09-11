@@ -81,7 +81,7 @@ class _ChordChartState extends State<ChordChart> {
         finger: ''),
     // 建議檔名避免有 /，這裡用 D7Fsharp.png / D7f.mp3
     'D7_F#': _ChordInfo(
-        img: 'assets/chords/D7Fsharp.png',
+        img: 'assets/chords/D7_F#.png',
         audio: 'audio/chords/D7f.mp3',
         desc: 'D7/F#：屬七轉位，常作過門使用。',
         finger: ''),

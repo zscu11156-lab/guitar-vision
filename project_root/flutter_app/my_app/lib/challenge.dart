@@ -1,4 +1,3 @@
-// challenge.dart
 import 'package:flutter/material.dart';
 import 'homepage.dart';
 import 'settings.dart';
@@ -41,6 +40,7 @@ class ChallengePage extends StatelessWidget {
                         width: cardW,
                         height: cardH,
                         title: 'basic chords',
+                        image: 'assets/images/basic.png', // ← 圖片
                         onTap: () {
                           Navigator.push(
                             context,
@@ -55,6 +55,7 @@ class ChallengePage extends StatelessWidget {
                         width: cardW,
                         height: cardH,
                         title: 'song',
+                        image: 'assets/images/main song.png', // ← 圖片
                         onTap: () {
                           Navigator.push(
                             context,
@@ -75,11 +76,10 @@ class ChallengePage extends StatelessWidget {
               top: 20,
               right: 20,
               child: GestureDetector(
-                onTap:
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SettingsPage()),
-                    ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                ),
                 child: Image.asset('assets/images/Setting.png', width: 50),
               ),
             ),
@@ -154,39 +154,79 @@ class _LearnCard extends StatelessWidget {
   final double width;
   final double height;
   final String title;
+  final String image; // 新增：卡片背景圖片
   final VoidCallback? onTap;
+
   const _LearnCard({
     required this.width,
     required this.height,
     required this.title,
+    required this.image,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: const Color(0xFFD9D9D9),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Center(
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFamily: 'LaBelleAurore',
-            fontSize: 50,
-            color: Colors.black87,
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // 背景圖
+                Image.asset(
+                  image,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: const Color(0xFFD9D9D9),
+                  ),
+                ),
+                // 讀性遮罩（底部到上方的透明黑漸層）
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Color(0xAA000000),
+                        Color(0x33000000),
+                        Color(0x00000000),
+                      ],
+                    ),
+                  ),
+                ),
+                // 中央文字
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'LaBelleAurore',
+                        fontSize: 50,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                            color: Colors.black54,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _NavItem extends StatelessWidget {
@@ -197,9 +237,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: InkWell(
-      onTap: onTap,
-      child: Center(child: Image.asset(img, width: size)),
-    ),
-  );
+        child: InkWell(
+          onTap: onTap,
+          child: Center(child: Image.asset(img, width: size)),
+        ),
+      );
 }
