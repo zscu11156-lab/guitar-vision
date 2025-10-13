@@ -62,7 +62,7 @@ class Lesson2Page4 extends StatelessWidget {
                           _BulletText('最後是Em和弦'),
                           SizedBox(height: 16),
                           Text(
-                            '食中指放在2品5弦上，無名指放在2品4弦上',
+                            '食中指放在2品5弦上，無名指放在2品4弦上\n*其餘基本和弦在和弦表中，請自行學習',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 16,

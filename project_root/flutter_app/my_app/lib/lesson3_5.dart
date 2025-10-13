@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'homepage.dart';
 import 'settings.dart';
-import 'lesson3_2.dart'; // ← 下一頁
+import 'lesson3_4.dart'; // ← 回上一頁
+import 'lesson3_6.dart'; // ← 下一頁
 import 'flip_page_route.dart';
 import 'tuner.dart';
 import 'chordchart.dart';
 import 'member.dart';
 
-class Lesson3Page extends StatelessWidget {
-  const Lesson3Page({super.key});
+class Lesson3Page5 extends StatelessWidget {
+  const Lesson3Page5({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +26,7 @@ class Lesson3Page extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ← 左：兩張圖片，往下 48
+                  // ← 左：兩張圖片（C.png 與 G.png），往下 150
                   Expanded(
                     flex: 1,
                     child: Padding(
@@ -35,20 +36,20 @@ class Lesson3Page extends StatelessWidget {
                           // C.png
                           Expanded(
                             child: AspectRatio(
-                              aspectRatio: 1, // 保持方形
+                              aspectRatio: 1,
                               child: Image.asset(
-                                'assets/chords/G.png',
+                                'assets/chords/C.png',
                                 fit: BoxFit.contain,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 0), // 兩張圖之間的間距
-                          // Cadd9.png
+                          const SizedBox(width: 0), // 需要間距可改 12
+                          // G.png
                           Expanded(
                             child: AspectRatio(
                               aspectRatio: 1,
                               child: Image.asset(
-                                'assets/chords/Cadd9.png',
+                                'assets/chords/G.png',
                                 fit: BoxFit.contain,
                               ),
                             ),
@@ -57,7 +58,7 @@ class Lesson3Page extends StatelessWidget {
                       ),
                     ),
                   ),
-
+                  const SizedBox(width: 24),
                   // → 右：文字，往下 96
                   Expanded(
                     flex: 1,
@@ -76,12 +77,13 @@ class Lesson3Page extends StatelessWidget {
                             ),
                           ),
                           SizedBox(height: 12),
-                          _BulletText('這一單元要練習和弦轉換，先練習幾個基本和弦'),
-                          SizedBox(height: 6),
-                          _BulletText('首先是G→Cadd9'),
+                          _BulletText('C → G'),
                           SizedBox(height: 16),
                           Text(
-                            '中指從 6 弦 3 品移到 5 弦 3 品、食指從 5 弦 2 品移到 4 弦 2 品，並用中指側面悶住 6 弦;反向 Cadd9→G 則把中指與食指原路移回',
+                            'C → G：建議用「先錨後補」。'
+                            '先把無名指與小指放在 B3 / e3 當錨點，再把中指放到 E3、食指放到 A2；'
+                            '反向 G→C 時錨點留在 B3 / e3 的做法也可，但多數人會先定位食指與中指到 B1 / D2，'
+                            '最後再把無名指放到 A3。重點：最少位移、同時落弦；C 優先刷 5→1 並可用 2 指側面悶 6 弦。',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 16,
@@ -109,18 +111,41 @@ class Lesson3Page extends StatelessWidget {
               ),
             ),
 
-            // 右下：下一頁箭頭（用圖片 arrow r.png）
+            // 左下：上一頁（arrow l.png）
+            Positioned(
+              left: 24,
+              bottom: 110,
+              child: IconButton(
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints.tight(const Size(36, 36)),
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    FlipPageRoute(child: const Lesson3Page4()),
+                  );
+                },
+                icon: Image.asset(
+                  'assets/images/arrow l.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+
+            // 右下：下一頁（arrow r.png）→ lesson3_6.dart
             Positioned(
               right: 24,
               bottom: 110,
               child: IconButton(
                 iconSize: 36,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+                constraints: BoxConstraints.tight(const Size(36, 36)),
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    FlipPageRoute(child: const Lesson3Page2()),
+                    FlipPageRoute(child: const Lesson3Page6()),
                   );
                 },
                 icon: Image.asset(
@@ -141,7 +166,6 @@ class Lesson3Page extends StatelessWidget {
         color: Colors.black,
         child: Row(
           children: [
-            // Home
             _NavItem(
               img: 'assets/images/home.png',
               size: navIcon,
@@ -153,7 +177,6 @@ class Lesson3Page extends StatelessWidget {
                 );
               },
             ),
-            // Tuner
             _NavItem(
               img: 'assets/images/tuner.png',
               size: navIcon,
@@ -164,7 +187,6 @@ class Lesson3Page extends StatelessWidget {
                 );
               },
             ),
-            // Chord Chart
             _NavItem(
               img: 'assets/images/chordchart.png',
               size: navIcon,
@@ -175,7 +197,6 @@ class Lesson3Page extends StatelessWidget {
                 );
               },
             ),
-            // Member
             _NavItem(
               img: 'assets/images/member.png',
               size: navIcon,
