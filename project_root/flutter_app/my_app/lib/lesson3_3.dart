@@ -80,7 +80,7 @@ class Lesson3Page3 extends StatelessWidget {
                           _BulletText('Am → C'),
                           SizedBox(height: 16),
                           Text(
-                            'Am(x02210) 與 C(x32010) 的樞紐是食指(B1)與中指(D2)：'
+                            'Am 與 C 的樞紐是食指(B1)與中指(D2)：'
                             '換到 C 時，食指與中指保持不動，將無名指從 G2 移到 A3；'
                             '反向 C→Am 則把無名指 A3 收回到 G2。重點是最少位移與同時落弦，'
                             'C 的 6 弦可用 2 指側面輕觸悶掉避免混濁。',

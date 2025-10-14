@@ -1,4 +1,4 @@
-// lib/camera3.dart
+// lib/camera3.dart (enhanced)
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -6,6 +6,8 @@ import 'package:camera/camera.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img; // 用於校正方向/水平反轉
+// 保持螢幕常亮
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 // 呼叫後端 /predict
 import 'api.dart';
@@ -37,23 +39,31 @@ class _CameraQingtianPageState extends State<camera3> {
   // ============ 即時和弦辨識狀態 ============
   Timer? _inferTimer;
   bool _inferBusy = false;
-  static const int _win = 5;   // 多數決視窗大小
-  static const int _need = 3;  // 連續幀門檻（幾幀都正確才算「對」）
+  static const int _win = 5; // 多數決視窗大小
+  static const int _need = 3; // 連續幀門檻（幾幀都正確才算「對」）
+
+  // ✅ 前鏡頭擷取是否要做水平翻轉（用於送往模型推論）。
+  // 預設 false：避免與某些裝置已非鏡像的擷取影像「重覆翻轉」。
+  // 若你的模型是以「自拍鏡像」資料訓練，可改成 true。
+  static const bool _flipFrontBytesForInference = false;
 
   final List<String> _predHist = [];
-  String _detected = "";       // 平滑後的辨識和弦
-  int _okStreak = 0;           // 目前連續正確幀數
+  String _detected = ""; // 平滑後的辨識和弦
+  int _okStreak = 0; // 目前連續正確幀數
 
   // 統計
-  int _framesSent = 0;                 // 總送出幀數
-  int _framesConsidered = 0;           // 有目標和弦的幀數
-  int _framesCorrect = 0;              // 正確幀數
-  int _framesWrong = 0;                // 錯誤幀數
-  int _longestStreak = 0;              // 最長連續正確
-  double _latencySumMs = 0;            // 端到端延遲和
-  int _latencyCount = 0;               // 延遲樣本數
+  int _framesSent = 0; // 總送出幀數
+  int _framesConsidered = 0; // 有目標和弦的幀數
+  int _framesCorrect = 0; // 正確幀數
+  int _framesWrong = 0; // 錯誤幀數
+  int _longestStreak = 0; // 最長連續正確
+  double _latencySumMs = 0; // 端到端延遲和
+  int _latencyCount = 0; // 延遲樣本數
   final Map<String, int> _attemptsByChord = {}; // 每個目標和弦的嘗試次數
-  final Map<String, int> _correctByChord  = {}; // 每個目標和弦的正確次數
+  final Map<String, int> _correctByChord = {}; // 每個目標和弦的正確次數
+
+  // 🔔 全螢幕相機需要「即時顯示目前應彈和弦」，用 ValueNotifier 讓畫面即時更新
+  final ValueNotifier<String> _expectedChordVN = ValueNotifier<String>('');
 
   // 歌詞＋時間＋和弦
   final List<Map<String, dynamic>> songData = const [
@@ -61,8 +71,8 @@ class _CameraQingtianPageState extends State<camera3> {
       "time": Duration(seconds: 35),
       "lyrics": "城市滴答 小巷滴答 沉默滴答 ",
       "chords": [
-        {"pos": 0, "chord": "G","offsetMs":0},
-        {"pos": 13, "chord": "G","offsetMs":2200},
+        {"pos": 0, "chord": "G", "offsetMs": 0},
+        {"pos": 13, "chord": "G", "offsetMs": 2200},
       ],
     },
     {"time": Duration(seconds: 37), "lyrics": "你的手慢熱的體溫", "chords": []},
@@ -70,23 +80,23 @@ class _CameraQingtianPageState extends State<camera3> {
       "time": Duration(seconds: 40),
       "lyrics": "方向錯亂 天氣預報 不準 雨傘忘了拿",
       "chords": [
-        {"pos": 0, "chord": "Em","offsetMs":0},
-        {"pos": 14, "chord": "Em","offsetMs":3080},
+        {"pos": 0, "chord": "Em", "offsetMs": 0},
+        {"pos": 14, "chord": "Em", "offsetMs": 3080},
       ],
     },
     {
       "time": Duration(seconds: 44),
       "lyrics": "我的手無處安放 包括我的心",
       "chords": [
-        {"pos": 6, "chord": "C","offsetMs":2040},
-        {"pos": 12, "chord": "D","offsetMs":4070},
+        {"pos": 6, "chord": "C", "offsetMs": 2040},
+        {"pos": 12, "chord": "D", "offsetMs": 4070},
       ],
     },
     {
       "time": Duration(seconds: 49),
       "lyrics": "像旋轉木馬- - ",
       "chords": [
-        {"pos": 4, "chord": "Em","offsetMs":2010},
+        {"pos": 4, "chord": "Em", "offsetMs": 2010},
         {"pos": 5, "chord": "Em"},
       ],
     },
@@ -94,32 +104,32 @@ class _CameraQingtianPageState extends State<camera3> {
       "time": Duration(seconds: 56),
       "lyrics": "或許這就是註定 ",
       "chords": [
-        {"pos": 0, "chord": "C","offsetMs":0},
-        {"pos": 7, "chord": "G","offsetMs":4000},
+        {"pos": 0, "chord": "C", "offsetMs": 0},
+        {"pos": 7, "chord": "G", "offsetMs": 4000},
       ],
     },
     {
       "time": Duration(seconds: 62),
       "lyrics": " 註定失敗的結局",
       "chords": [
-        {"pos": 0, "chord": "B","offsetMs":0},
-        {"pos": 7, "chord": "Em","offsetMs":2270},
+        {"pos": 0, "chord": "B", "offsetMs": 0},
+        {"pos": 7, "chord": "Em", "offsetMs": 2270},
       ],
     },
     {
       "time": Duration(seconds: 67),
       "lyrics": "成熟帶來的孤寂",
       "chords": [
-        {"pos": 0, "chord": "C","offsetMs":0},
-        {"pos": 6, "chord": "G","offsetMs":3150},
+        {"pos": 0, "chord": "C", "offsetMs": 0},
+        {"pos": 6, "chord": "G", "offsetMs": 3150},
       ],
     },
     {
       "time": Duration(seconds: 73),
       "lyrics": "如滾水在心中滿溢- - ",
       "chords": [
-        {"pos": 1, "chord": "Am","offsetMs":170},
-        {"pos": 7, "chord": "D","offsetMs":3050},
+        {"pos": 1, "chord": "Am", "offsetMs": 170},
+        {"pos": 7, "chord": "D", "offsetMs": 3050},
         {"pos": 8, "chord": "D"},
         {"pos": 9, "chord": "X"},
       ],
@@ -128,84 +138,84 @@ class _CameraQingtianPageState extends State<camera3> {
       "time": Duration(seconds: 80),
       "lyrics": "我的心 你放在哪裡 ",
       "chords": [
-        {"pos": 2, "chord": "G","offsetMs":1230},
-        {"pos": 9, "chord": "G","offsetMs":4190},
+        {"pos": 2, "chord": "G", "offsetMs": 1230},
+        {"pos": 9, "chord": "G", "offsetMs": 4190},
       ],
     },
     {
       "time": Duration(seconds: 85),
       "lyrics": "或許你 根本就不在意 ",
       "chords": [
-        {"pos": 3, "chord": "Em","offsetMs":2160},
-        {"pos": 10, "chord": "Em","offsetMs":5000},
+        {"pos": 3, "chord": "Em", "offsetMs": 2160},
+        {"pos": 10, "chord": "Em", "offsetMs": 5000},
       ],
     },
     {
       "time": Duration(seconds: 91),
       "lyrics": "錯把承諾當有趣 ",
       "chords": [
-        {"pos": 2, "chord": "B","offsetMs":1140},
-        {"pos": 7, "chord": "Em","offsetMs":4170},
+        {"pos": 2, "chord": "B", "offsetMs": 1140},
+        {"pos": 7, "chord": "Em", "offsetMs": 4170},
       ],
     },
     {
       "time": Duration(seconds: 96),
       "lyrics": "怎麼對得起",
       "chords": [
-        {"pos": 4, "chord": "C","offsetMs":2040},
+        {"pos": 4, "chord": "C", "offsetMs": 2040},
       ],
     },
     {
       "time": Duration(seconds: 99),
       "lyrics": "你我炙熱的痕跡",
       "chords": [
-        {"pos": 6, "chord": "D","offsetMs":2000},
+        {"pos": 6, "chord": "D", "offsetMs": 2000},
       ],
     },
     {
       "time": Duration(seconds: 102),
       "lyrics": "你的心 你放在哪裡 ",
       "chords": [
-        {"pos": 2, "chord": "G","offsetMs":1230},
-        {"pos": 9, "chord": "G","offsetMs":4190},
+        {"pos": 2, "chord": "G", "offsetMs": 1230},
+        {"pos": 9, "chord": "G", "offsetMs": 4190},
       ],
     },
     {
       "time": Duration(seconds: 108),
       "lyrics": "再追究 也毫無意義 ",
       "chords": [
-        {"pos": 2, "chord": "Em","offsetMs":2160},
-        {"pos": 8, "chord": "Em","offsetMs":4500},
+        {"pos": 2, "chord": "Em", "offsetMs": 2160},
+        {"pos": 8, "chord": "Em", "offsetMs": 4500},
       ],
     },
     {
       "time": Duration(seconds: 113),
       "lyrics": "接受慌亂的思緒 ",
       "chords": [
-        {"pos": 2, "chord": "B","offsetMs":1240},
-        {"pos": 7, "chord": "Em","offsetMs":4170},
+        {"pos": 2, "chord": "B", "offsetMs": 1240},
+        {"pos": 7, "chord": "Em", "offsetMs": 4170},
       ],
     },
     {
       "time": Duration(seconds: 119),
       "lyrics": "總比到頭來",
       "chords": [
-        {"pos": 4, "chord": "C","offsetMs":1000},
+        {"pos": 4, "chord": "C", "offsetMs": 1000},
       ],
     },
     {
       "time": Duration(seconds: 121),
       "lyrics": "面對無聲地失去",
       "chords": [
-        {"pos": 6, "chord": "D","offsetMs":2000},
+        {"pos": 6, "chord": "D", "offsetMs": 2000},
       ],
     },
     {
       "time": Duration(seconds: 124),
       "lyrics": "無法開口 說聲 好不容易",
       "chords": [
-        {"pos": 3, "chord": "Am","offsetMs":1100},
-        {"pos": 6, "chord": "D","offsetMs":2000},
+        {"pos": 3, "chord": "Am", "offsetMs": 1100},
+        {"pos": 6, "chord": "D", "offsetMs": 2000},
       ],
     },
   ];
@@ -234,6 +244,9 @@ class _CameraQingtianPageState extends State<camera3> {
   void initState() {
     super.initState();
 
+    // 保持螢幕常亮
+    WakelockPlus.enable();
+
     // 建立「無縫」和弦時間軸（上一顆撐到下一顆；支援 offsetMs；沒有就等分）
     _timeline = _buildTimeline(songData);
     _evtIdx = 0;
@@ -258,7 +271,8 @@ class _CameraQingtianPageState extends State<camera3> {
       await _controller?.dispose();
 
       _controller = CameraController(
-        cam, ResolutionPreset.medium,
+        cam,
+        ResolutionPreset.medium,
         enableAudio: false,
       );
       await _controller!.initialize();
@@ -268,7 +282,8 @@ class _CameraQingtianPageState extends State<camera3> {
       // 相機就緒後，啟動固定頻率推論
       _inferTimer?.cancel();
       _inferTimer = Timer.periodic(
-        const Duration(milliseconds: 600), (_) => _captureAndPredict(),
+        const Duration(milliseconds: 600),
+        (_) => _captureAndPredict(),
       );
     } catch (e) {
       debugPrint('相機初始化失敗: $e');
@@ -351,6 +366,7 @@ class _CameraQingtianPageState extends State<camera3> {
       _activeEvt = evt;
       if (evt.chord != currentChord) {
         setState(() => currentChord = evt.chord); // 顯示保留原字串（不強制轉 alias）
+        _expectedChordVN.value = evt.chord; // 🔔 通知全螢幕疊層即時更新
       }
     } else {
       // 不在任何事件內：保留畫面上的和弦，不清空（直到下一顆出現才換）
@@ -372,9 +388,11 @@ class _CameraQingtianPageState extends State<camera3> {
   void _scrollToCurrentLine() {
     final target = currentLineIndex * _lineHeight;
     _scroll
-        .animateTo(target,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut)
+        .animateTo(
+          target,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+        )
         .catchError((_) {});
   }
 
@@ -391,11 +409,12 @@ class _CameraQingtianPageState extends State<camera3> {
       final shot = await _controller!.takePicture();
       Uint8List bytes = await shot.readAsBytes();
 
-      // 校正 EXIF + 前鏡頭水平反轉（避免鏡像）
+      // 校正 EXIF；為避免鏡像錯亂，預設不對前鏡頭做翻轉（只翻預覽）。
       final decoded = img.decodeImage(bytes);
       if (decoded != null) {
         img.Image fixed = img.bakeOrientation(decoded);
-        if (_controller!.description.lensDirection == CameraLensDirection.front) {
+        final bool isFront = _controller!.description.lensDirection == CameraLensDirection.front;
+        if (isFront && _flipFrontBytesForInference) {
           fixed = img.flipHorizontal(fixed);
         }
         bytes = Uint8List.fromList(img.encodeJpg(fixed, quality: 90));
@@ -469,26 +488,25 @@ class _CameraQingtianPageState extends State<camera3> {
       await _player.stop();
     } catch (_) {}
 
-    final avgLatency =
-        _latencyCount == 0 ? 0.0 : _latencySumMs / _latencyCount.toDouble();
-    final accuracy = _framesConsidered == 0
-        ? 0.0
-        : _framesCorrect / _framesConsidered;
+    final avgLatency = _latencyCount == 0 ? 0.0 : _latencySumMs / _latencyCount.toDouble();
+    final accuracy = _framesConsidered == 0 ? 0.0 : _framesCorrect / _framesConsidered;
 
     if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _ChordScorePage(
-        totalFrames: _framesSent,
-        considered: _framesConsidered,
-        correct: _framesCorrect,
-        wrong: _framesWrong,
-        longestStreak: _longestStreak,
-        avgLatencyMs: avgLatency,
-        attemptsByChord: Map<String, int>.from(_attemptsByChord),
-        correctByChord: Map<String, int>.from(_correctByChord),
-        finalAccuracy: accuracy,
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _ChordScorePage(
+          totalFrames: _framesSent,
+          considered: _framesConsidered,
+          correct: _framesCorrect,
+          wrong: _framesWrong,
+          longestStreak: _longestStreak,
+          avgLatencyMs: avgLatency,
+          attemptsByChord: Map<String, int>.from(_attemptsByChord),
+          correctByChord: Map<String, int>.from(_correctByChord),
+          finalAccuracy: accuracy,
+        ),
       ),
-    ));
+    );
 
     // 回到頁面後：單純重置並繼續
     _resetMetrics();
@@ -507,14 +525,16 @@ class _CameraQingtianPageState extends State<camera3> {
     _inferTimer?.cancel();
     _controller?.dispose();
     _scroll.dispose();
+    _expectedChordVN.dispose();
+    // 恢復系統預設（允許休眠）
+    WakelockPlus.disable();
     super.dispose();
   }
 
   // ================== UI ==================
   @override
   Widget build(BuildContext context) {
-    final camReady =
-        _camReady && _controller != null && _controller!.value.isInitialized;
+    final camReady = _camReady && _controller != null && _controller!.value.isInitialized;
     final bool okNow = _okStreak >= _need;
 
     return Scaffold(
@@ -543,13 +563,12 @@ class _CameraQingtianPageState extends State<camera3> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    currentChord.isEmpty
-                        ? '和弦（應彈）：'
-                        : '和弦（應彈）：$currentChord',
+                    currentChord.isEmpty ? '和弦（應彈）：' : '和弦（應彈）：$currentChord',
                     style: const TextStyle(
-                        color: Colors.greenAccent,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold),
+                      color: Colors.greenAccent,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -559,8 +578,7 @@ class _CameraQingtianPageState extends State<camera3> {
                     children: [
                       Text(
                         _detected.isEmpty ? '辨識：—' : '辨識：$_detected',
-                        style:
-                            const TextStyle(color: Colors.white70, fontSize: 18),
+                        style: const TextStyle(color: Colors.white70, fontSize: 18),
                       ),
                       const SizedBox(width: 12),
                       Text(
@@ -579,13 +597,16 @@ class _CameraQingtianPageState extends State<camera3> {
                   child: ListView.builder(
                     controller: _scroll,
                     itemCount: songData.length,
-                    itemBuilder: (_, i) =>
-                        _buildChordLyricLine(songData[i], i == currentLineIndex),
+                    itemBuilder: (_, i) => _buildChordLyricLine(
+                      songData[i],
+                      i == currentLineIndex,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+
           if (camReady)
             Positioned(
               left: x,
@@ -604,23 +625,54 @@ class _CameraQingtianPageState extends State<camera3> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          CameraQingtianFullScreen(controller: _controller!),
+                      builder: (_) => CameraQingtianFullScreen(
+                        controller: _controller!,
+                        expectedVN: _expectedChordVN, // ✅ 全螢幕疊層即時顯示應彈和弦
+                      ),
                     ),
                   );
                 },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 160,
-                    height: 120,
-                    child: Transform(
-                      alignment: Alignment.center,
-                      transform: (_controller?.description.lensDirection == CameraLensDirection.front)
-                          ? (Matrix4.identity()..scale(-1.0, 1.0, 1.0)) // 前鏡頭預覽水平反轉
-                          : Matrix4.identity(),
-                      child: CameraPreview(_controller!),
-                    ),
+                  child: Stack(
+                    children: [
+                      SizedBox(
+                        width: 160,
+                        height: 120,
+                        child: Transform(
+                          alignment: Alignment.center,
+                          transform: (_controller?.description.lensDirection ==
+                                  CameraLensDirection.front)
+                              ? (Matrix4.identity()..scale(-1.0, 1.0, 1.0)) // 前鏡頭預覽水平反轉
+                              : Matrix4.identity(),
+                          child: CameraPreview(_controller!),
+                        ),
+                      ),
+                      // 🔲 小窗左上角顯示應彈和弦
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: ValueListenableBuilder<String>(
+                          valueListenable: _expectedChordVN,
+                          builder: (_, chord, __) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white70),
+                            ),
+                            child: Text(
+                              chord.isEmpty ? '—' : chord,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -655,8 +707,7 @@ class _CameraQingtianPageState extends State<camera3> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 16,
-                      color:
-                          active ? Colors.greenAccent : Colors.white54,
+                      color: active ? Colors.greenAccent : Colors.white54,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -674,8 +725,7 @@ class _CameraQingtianPageState extends State<camera3> {
                     style: TextStyle(
                       fontSize: active ? 22 : 18,
                       color: active ? Colors.white : Colors.white70,
-                      fontWeight:
-                          active ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: active ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 );
@@ -746,32 +796,76 @@ class _CameraQingtianPageState extends State<camera3> {
 
 class CameraQingtianFullScreen extends StatelessWidget {
   final CameraController controller;
-  const CameraQingtianFullScreen({super.key, required this.controller});
+  final ValueListenable<String> expectedVN; // ✅ 全螢幕同步顯示應彈和弦
+  const CameraQingtianFullScreen({super.key, required this.controller, required this.expectedVN});
 
   @override
   Widget build(BuildContext context) {
     final isFront = controller.description.lensDirection == CameraLensDirection.front;
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(children: [
-        Positioned.fill(
-          child: Transform(
-            alignment: Alignment.center,
-            transform: isFront
-                ? (Matrix4.identity()..scale(-1.0, 1.0, 1.0))
-                : Matrix4.identity(),
-            child: CameraPreview(controller),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Transform(
+              alignment: Alignment.center,
+              transform: isFront ? (Matrix4.identity()..scale(-1.0, 1.0, 1.0)) : Matrix4.identity(),
+              child: CameraPreview(controller),
+            ),
           ),
-        ),
-        Positioned(
-          top: 40,
-          left: 16,
-          child: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white, size: 32),
-            onPressed: () => Navigator.pop(context),
+
+          // 🔲 置中的「應彈和弦」框框：點擊即可返回
+          Positioned(
+            top: 32,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.pop(context),
+                child: ValueListenableBuilder<String>(
+                  valueListenable: expectedVN,
+                  builder: (_, chord, __) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.music_note, color: Colors.white70, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          chord.isEmpty ? '—' : '應彈：$chord',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text('（點我返回）', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ]),
+
+          // 左上角關閉按鈕（保留原功能）
+          Positioned(
+            top: 40,
+            left: 16,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 32),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -848,9 +942,12 @@ class _ChordScorePage extends StatelessWidget {
             for (final chord in items)
               InkWell(
                 onTap: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => ChordChart(selected: chord),
-                  ));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChordChart(selected: chord),
+                    ),
+                  );
                 },
                 child: _chordRow(
                   chord,
@@ -865,9 +962,12 @@ class _ChordScorePage extends StatelessWidget {
             if (worstChord != null)
               FilledButton(
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => ChordChart(selected: worstChord),
-                  ));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChordChart(selected: worstChord),
+                    ),
+                  );
                 },
                 child: Text('看最弱和弦：$worstChord（${(worstAcc * 100).toStringAsFixed(0)}%）'),
               )
@@ -890,8 +990,20 @@ class _ChordScorePage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(child: Text(k, style: const TextStyle(color: Colors.white70, fontSize: 16))),
-          Text(v, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text(
+              k,
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+          ),
+          Text(
+            v,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -911,8 +1023,14 @@ class _ChordScorePage extends StatelessWidget {
         children: [
           SizedBox(
             width: 80,
-            child: Text(chord,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Text(
+              chord,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           Expanded(
             child: LinearProgressIndicator(
@@ -922,11 +1040,15 @@ class _ChordScorePage extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Text('${(acc * 100).toStringAsFixed(0)}%',
-              style: const TextStyle(color: Colors.white, fontSize: 16)),
+          Text(
+            '${(acc * 100).toStringAsFixed(0)}%',
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+          ),
           const SizedBox(width: 12),
-          Text('$cor/$att',
-              style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          Text(
+            '$cor/$att',
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
         ],
       ),
     );

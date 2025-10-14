@@ -5,6 +5,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 
+// 音訊
+import 'package:flutter_audio_capture/flutter_audio_capture.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+// 影像 bytes 處理（用於前鏡頭水平反轉）
+import 'package:image/image.dart' as img;
+
 import 'homepage.dart';
 import 'settings.dart';
 import 'tuner.dart';
@@ -15,12 +22,10 @@ import 'api.dart';
 class BasicChordsPage extends StatelessWidget {
   const BasicChordsPage({super.key});
 
-  // 你要挑戰的和弦清單（可自行調整）
   static const List<String> basicChords = [
     'Am','Am7','B','Bm','C','Cadd9','D','D7_F#','Dsus4','Em','Em7','G',
   ];
 
-  // 倒數秒數（只在第一題） & 每題作答時間（秒）
   static const int countdownSec = 3;
   static const int playDurationSec = 10;
 
@@ -33,7 +38,6 @@ class BasicChordsPage extends StatelessWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            // 內容
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: ListView(
@@ -59,7 +63,7 @@ class BasicChordsPage extends StatelessWidget {
                         SizedBox(height: 6),
                         Text('之後每題隨機一個和弦，各有 10 秒', style: TextStyle(color: Colors.white, fontSize: 18)),
                         SizedBox(height: 6),
-                        Text('只要任一瞬間辨識到目標和弦就算對，立刻進下一題', style: TextStyle(color: Colors.white, fontSize: 18)),
+                        Text('音訊或影像任一命中目標和弦就過關', style: TextStyle(color: Colors.white, fontSize: 18)),
                       ],
                     ),
                   ),
@@ -91,7 +95,6 @@ class BasicChordsPage extends StatelessWidget {
               ),
             ),
 
-            // 右上設定
             Positioned(
               top: 20,
               right: 20,
@@ -107,13 +110,11 @@ class BasicChordsPage extends StatelessWidget {
         ),
       ),
 
-      // BottomBar 導覽列（黑底）
       bottomNavigationBar: Container(
         height: 80,
         color: Colors.black,
         child: Row(
           children: [
-            // Home
             _NavItem(
               img: 'assets/images/home.png',
               size: 50,
@@ -128,7 +129,6 @@ class BasicChordsPage extends StatelessWidget {
                 }
               },
             ),
-            // microphone -> tuner
             _NavItem(
               img: 'assets/images/tuner.png',
               size: navIcon,
@@ -139,7 +139,6 @@ class BasicChordsPage extends StatelessWidget {
                 );
               },
             ),
-            // history -> chordchart
             _NavItem(
               img: 'assets/images/chordchart.png',
               size: navIcon,
@@ -150,7 +149,6 @@ class BasicChordsPage extends StatelessWidget {
                 );
               },
             ),
-            // Member
             _NavItem(
               img: 'assets/images/member.png',
               size: navIcon,
@@ -168,11 +166,10 @@ class BasicChordsPage extends StatelessWidget {
   }
 }
 
-/// 單回合作答紀錄
 class AttemptLog {
   final String chord;
   final bool success;
-  final double spentSec; // 成功＝耗時秒；未完成＝整段作答時長
+  final double spentSec;
   final DateTime when;
   final double? successConfidence;
 
@@ -185,7 +182,6 @@ class AttemptLog {
   });
 }
 
-/// 挑戰頁：第一題倒數 → 每題 10 秒 → 任一瞬間命中即過關
 class BasicChordsChallengePage extends StatefulWidget {
   final List<String> chords;
   final int countdownSec;
@@ -204,13 +200,13 @@ class BasicChordsChallengePage extends StatefulWidget {
 }
 
 class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
-  // 可調參數（單幀即過關模式：不需連擊、不看信心分數）
-  static const Duration _inferInterval = Duration(milliseconds: 600);
+  // ——— 把頻率略加快，讓後端 (HOLD_FRAMES=3) 比較容易連續命中 ———
+  static const Duration _inferInterval = Duration(milliseconds: 350);
 
-  // 狀態
+  // ===== 狀態 =====
   late int _countdownLeft;
   late int _playLeft;
-  bool _inCountdown = true; // 只用在第一題
+  bool _inCountdown = true;
   String? _targetChord;
 
   Timer? _countdownTimer;
@@ -229,27 +225,45 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
   Duration? _timeToSuccess;
   bool _success = false;
   bool _loggedThisRound = false;
-  bool _advancing = false; // 防重入：成功換題時使用
+  bool _advancing = false;
 
   final List<AttemptLog> _history = [];
 
+  // ===== 音訊狀態 / 緩衝 =====
+  final FlutterAudioCapture _cap = FlutterAudioCapture();
+  static const int _sr = 44100;
+  static const int _winBytes = _sr * 2; // 1秒 mono 16-bit
+  Timer? _audioTimer;
+  bool _audioBusy = false;
+
+  final List<int> _ring = <int>[];
+  String? _lastAudioVote;
+  double? _lastEnergy;
+  double? _lastAudioConf;
+
+  // ===== 門檻（統一 0.30） =====
+  static const double _audioLooseConf  = 0.30;
+  static const double _VISION_CONF_PASS = 0.30;
+  static const double _VISION_TOPK_PASS = 0.30;
+
   @override
   void initState() {
-  super.initState();
-  _countdownLeft = widget.countdownSec; // 先給值，避免第一次 build 讀到未初始化
-  _initCamera().then((_) => _startCountdown());
-}
+    super.initState();
+    _countdownLeft = widget.countdownSec;
+    _initCamera().then((_) => _startCountdown());
+  }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
     _playTimer?.cancel();
     _inferTimer?.cancel();
+    _stopMic();
     _cam?.dispose();
     super.dispose();
   }
 
-  // 取用前鏡頭（找不到則退而求其次）
+  // ====== Camera ======
   Future<void> _initCamera() async {
     try {
       final cams = await availableCameras();
@@ -274,7 +288,7 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
   }
 
   void _startCountdown() {
-    _inCountdown = true; // 僅第一題會用到
+    _inCountdown = true;
     _loggedThisRound = false;
     _countdownLeft = widget.countdownSec;
     _countdownTimer?.cancel();
@@ -284,15 +298,15 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
         _countdownLeft--;
         if (_countdownLeft <= 0) {
           t.cancel();
-          _startPlay(); // 第一題開始
+          _startPlay();
         }
       });
     });
   }
 
-  // 啟動一題（不倒數）：選新和弦、重設 10 秒、重開推論
+  // ====== 每題開始 ======
   void _startPlay() {
-    _inCountdown = false; // 後續題目都不會再倒數
+    _inCountdown = false;
     _targetChord = widget.chords[Random().nextInt(widget.chords.length)];
     _playLeft = widget.playDurationSec;
     _success = false;
@@ -303,7 +317,6 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
     _playStartAt = DateTime.now();
     _advancing = false;
 
-    // 重新啟動倒數計時（每題 10 秒）
     _playTimer?.cancel();
     _playTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
@@ -312,14 +325,16 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
         if (_playLeft <= 0) {
           t.cancel();
           _stopInfer();
-          _success = false; // 逾時未完成
-          _showFailOverlay(); // 顯示未完成頁（暫不跳轉學習）
+          _success = false;
+          _showFailOverlay();
         }
       });
     });
 
-    // 重新啟動推論取樣
     _startInfer();
+
+    // 啟動音訊串流
+    () async { await _stopMic(); await _startMic(); }();
   }
 
   void _startInfer() {
@@ -331,6 +346,16 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
   void _stopInfer() {
     _inferTimer?.cancel();
     _inferTimer = null;
+    _stopMic();
+  }
+
+  // —— 前鏡頭：把要上傳的 JPEG 水平反轉（伺服器會以「正向」來看）——
+  Uint8List _maybeMirrorJpeg(Uint8List bytes, bool mirror) {
+    if (!mirror) return bytes;
+    final im = img.decodeImage(bytes);
+    if (im == null) return bytes;
+    final flipped = img.flipHorizontal(im);
+    return Uint8List.fromList(img.encodeJpg(flipped, quality: 85));
   }
 
   Future<void> _snapAndPredict() async {
@@ -339,9 +364,13 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
 
     try {
       _snapBusy = true;
-      final xfile = await _cam!.takePicture(); // 拍攝 JPEG
-      final bytes = await xfile.readAsBytes();
+      final xfile = await _cam!.takePicture();
+      var bytes = await xfile.readAsBytes();
       _snapBusy = false;
+
+      // 若為前鏡頭，送出前先水平反轉
+      final isFront = _cam!.description.lensDirection == CameraLensDirection.front;
+      bytes = _maybeMirrorJpeg(bytes, isFront);
 
       _predictBusy = true;
       final pred = await _predictWithTarget(bytes, _targetChord ?? '');
@@ -349,33 +378,53 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
 
       if (!mounted || pred == null) return;
 
-      final predLabelNorm = _normalize(pred.label);
-      final targetNorm = _normalize(_targetChord ?? '');
+      final normLabel   = _normalize(pred.label);
+      final normTarget  = _normalize(_targetChord ?? '');
+      final targetCanon = _toFamily(normTarget);
 
-      // DEBUG：看正規化後的比對內容
-      debugPrint('targetNorm=$targetNorm predNorm=$predLabelNorm raw="${pred.label}" conf=${pred.confidence}');
+      bool isHit = false;
 
-      // 單幀即過關：只要標籤相同或後端回傳 is_correct，就視為命中（不看信心分數）
-      final isHit = (pred.isCorrect ?? false) || (predLabelNorm == targetNorm);
+      // 0) 若後端已判定連續幀成立 → 直接過關
+      if (pred.scoreEvent == true) {
+        isHit = true;
+      }
+
+      // 1) 後端多數決正確（is_correct_maj）或單幀 is_correct
+      if (!isHit && (pred.isCorrectMaj == true)) isHit = true;
+      if (!isHit && (pred.isCorrect == true))    isHit = true;
+
+      // 2) 單幀/多數決 標籤與目標字串完全一致
+      if (!isHit && normLabel == normTarget) isHit = true;
+      if (!isHit && pred.majLabel != null && _normalize(pred.majLabel!) == normTarget) isHit = true;
+
+      // 3) 同家族 + 信心達標（0.30）
+      if (!isHit && _sameFamily(normLabel, normTarget) && (pred.confidence ?? 0) >= _VISION_CONF_PASS) {
+        isHit = true;
+      }
+      if (!isHit && pred.majLabel != null) {
+        if (_sameFamily(_normalize(pred.majLabel!), normTarget) &&
+            (pred.majConfidence ?? 0) >= _VISION_CONF_PASS) {
+          isHit = true;
+        }
+      }
+
+      // 4) top-k 有目標家族且機率達標（0.30）
+      if (!isHit && pred.topk != null && pred.topk!.isNotEmpty) {
+        for (final e in pred.topk!.entries) {
+          if (e.value >= _VISION_TOPK_PASS && _toFamily(e.key) == targetCanon) {
+            isHit = true;
+            break;
+          }
+        }
+      }
 
       setState(() {
-        _lastPredLabel = pred.label;
-        _lastPredConf = pred.confidence;
+        _lastPredLabel = pred.majLabel ?? pred.label; // 顯示多數決結果優先
+        _lastPredConf  = pred.majConfidence ?? pred.confidence;
       });
 
       if (isHit) {
-        // 成功：紀錄後直接切到下一題（不倒數、不彈面板）
-        _advancing = true;
-        _stopInfer();
-        _playTimer?.cancel();
-        _success = true;
-        if (_playStartAt != null) {
-          _timeToSuccess = DateTime.now().difference(_playStartAt!);
-        }
-        _logThisRound(successConf: pred.confidence);
-
-        // 立即換題（會重設 10 秒、重開推論）
-        _startPlay();
+        _onSuccess(by: 'vision', conf: pred.majConfidence ?? pred.confidence);
       }
     } catch (e) {
       _snapBusy = false;
@@ -384,22 +433,171 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
     }
   }
 
-  // 後端對接（優先用帶 target 的 API；失敗退回 predictBytes）
+  // ====== Audio: flutter_audio_capture + /audio_chunk ======
+  Future<void> _startMic() async {
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      _toast('麥克風權限被拒絕，改用影像判定');
+      return;
+    }
+
+    await _cap.start(
+      (dynamic obj) {
+        final bytes = _toPCM16Bytes(obj);
+        if (bytes.isEmpty) return;
+        _ring.addAll(bytes);
+        final maxKeep = _winBytes * 2; // 最多保留 2 秒
+        if (_ring.length > maxKeep) {
+          _ring.removeRange(0, _ring.length - maxKeep);
+        }
+      },
+      (Object e) => debugPrint('audio_capture error: $e'),
+      sampleRate: _sr,
+      bufferSize: 4096,
+    );
+
+    _audioTimer?.cancel();
+    _audioTimer = Timer.periodic(const Duration(milliseconds: 250), (_) => _pollAudio());
+  }
+
+  Future<void> _stopMic() async {
+    try { await _cap.stop(); } catch (_) {}
+    _audioTimer?.cancel();
+    _audioTimer = null;
+    _ring.clear();
+  }
+
+  Uint8List _toPCM16Bytes(dynamic obj) {
+    if (obj is Float32List) {
+      final out = Int16List(obj.length);
+      for (var i = 0; i < obj.length; i++) {
+        final s = (obj[i] * 32767.0).clamp(-32768.0, 32767.0).round();
+        out[i] = s;
+      }
+      return Uint8List.view(out.buffer);
+    } else if (obj is Float64List) {
+      final out = Int16List(obj.length);
+      for (var i = 0; i < obj.length; i++) {
+        final s = (obj[i] * 32767.0).clamp(-32768.0, 32767.0).round();
+        out[i] = s;
+      }
+      return Uint8List.view(out.buffer);
+    } else if (obj is List) {
+      final out = Int16List(obj.length);
+      for (var i = 0; i < obj.length; i++) {
+        final v = (obj[i] as num).toDouble();
+        final s = (v * 32767.0).clamp(-32768.0, 32767.0).round();
+        out[i] = s;
+      }
+      return Uint8List.view(out.buffer);
+    }
+    return Uint8List(0);
+  }
+
+  Future<void> _pollAudio() async {
+    if (_audioBusy) return;
+    if (_ring.length < _winBytes) return;
+    try {
+      _audioBusy = true;
+      final start = _ring.length - _winBytes;
+      final window = Uint8List.fromList(_ring.sublist(start));
+
+      final r = await Api.audioChunk(window, sr: _sr);
+      final vote = (r['vote'] as String?) ?? 'NC';
+      final chord = (r['chord'] as String?) ?? 'NC';
+      final energy = (r['energy'] as num?)?.toDouble();
+      final conf = (r['conf'] as num?)?.toDouble();
+
+      if (!mounted) return;
+      setState(() {
+        _lastAudioVote = vote;
+        _lastEnergy = energy;
+        _lastAudioConf = conf;
+      });
+
+      if (_targetChord != null) {
+        final target = _targetChord!;
+
+        // ① 多數決：同家族即可過關
+        final hitByVoteFam = _sameFamily(vote, target);
+
+        // ② 當前窗：同家族且 conf ≥ 0.30 也過關
+        final hitByChordConfFam = _sameFamily(chord, target) &&
+                                  (conf != null && conf >= _audioLooseConf);
+
+        if (hitByVoteFam || hitByChordConfFam) {
+          _onSuccess(by: hitByVoteFam ? 'audio(vote_fam)' : 'audio(conf_fam)', conf: conf);
+        }
+      }
+    } catch (e) {
+      debugPrint('audio_chunk error: $e');
+    } finally {
+      _audioBusy = false;
+    }
+  }
+
+  // ====== 共用過關流程 ======
+  void _onSuccess({required String by, double? conf}) {
+    if (_advancing) return;
+    _advancing = true;
+    _stopInfer();                // 也會關 mic
+    _playTimer?.cancel();
+    _success = true;
+    if (_playStartAt != null) {
+      _timeToSuccess = DateTime.now().difference(_playStartAt!);
+    }
+    _logThisRound(successConf: conf);
+    // 立即下一題
+    _startPlay();
+  }
+
+  // ====== 後端對接（影像） ======
   Future<_Pred?> _predictWithTarget(Uint8List jpgBytes, String targetChord) async {
     try {
       final r = await Api.predictWithTarget(jpgBytes, targetChord);
+
+      // 解析 topk: [{label: "...", prob: 0.xx}, ...]
+      Map<String, double>? topk;
+      final rawTopk = r['topk'];
+      if (rawTopk is List) {
+        topk = <String, double>{};
+        for (final e in rawTopk) {
+          if (e is Map) {
+            final lbl = (e['label'] as String?) ?? '';
+            final p = (e['prob'] as num?)?.toDouble() ?? 0.0;
+            topk[_normalize(lbl)] = p;
+          }
+        }
+      }
+
       return _Pred(
         label: (r['label'] as String?) ?? '',
         confidence: (r['confidence'] as num?)?.toDouble(),
         isCorrect: r['is_correct'] as bool?,
+        // 新增：使用伺服器多數決與連續幀事件
+        majLabel: (r['maj_label'] as String?),
+        majConfidence: (r['maj_confidence'] as num?)?.toDouble(),
+        isCorrectMaj: r['is_correct_maj'] as bool?,
+        scoreEvent: (r['score_event'] as bool?) ?? false,
+        topk: topk,
       );
     } catch (_) {
+      // 後備：舊 API（無 target）
       try {
         final r2 = await Api.predictBytes(jpgBytes);
         final lbl = (r2['label'] as String?) ?? '';
         final conf = (r2['confidence'] as num?)?.toDouble();
         final ok = _normalize(lbl) == _normalize(targetChord);
-        return _Pred(label: lbl, confidence: conf, isCorrect: ok);
+        return _Pred(
+          label: lbl,
+          confidence: conf,
+          isCorrect: ok,
+          majLabel: null,
+          majConfidence: null,
+          isCorrectMaj: null,
+          scoreEvent: false,
+          topk: null,
+        );
       } catch (e) {
         debugPrint('predict fallback 失敗: $e');
         return null;
@@ -407,30 +605,61 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
     }
   }
 
-  // —— 強化版正規化 —— //
-  // 1) 全形-->半形、大小寫統一  2) ♯/＃ -> #、♭ -> b
-  // 3) 去掉所有空白(含NBSP)、零寬、變體選擇符  4) 移除 _, -, /, \ 等分隔符
+  // ====== Normalize & Family ======
   String _normalize(String s) {
     if (s.isEmpty) return '';
     final buf = StringBuffer();
     for (final cp in s.runes) {
       int c = cp;
-      // 全形 ASCII -> 半形
-      if (c >= 0xFF01 && c <= 0xFF5E) c -= 0xFEE0;
-      // 特殊 dash 類統一成 '-'
+      if (c >= 0xFF01 && c <= 0xFF5E) c -= 0xFEE0; // 全形→半形
       if (c == 0x2212 || c == 0x2013 || c == 0x2014) c = 0x2D;
-      // NBSP -> space；去掉零寬/變體選擇符
       if (c == 0x00A0) c = 0x20;
       if (c == 0x200B || c == 0x200C || c == 0x200D || c == 0xFE0F) continue;
-      // ♯/＃ -> #；♭ -> b
-      if (c == 0x266F || c == 0xFF03) c = 0x23; // '#'
-      if (c == 0x266D) c = 0x62; // 'b'
+      if (c == 0x266F || c == 0xFF03) c = 0x23; // ♯/＃ → '#'
+      if (c == 0x266D) c = 0x62;                // ♭ → 'b'
       buf.writeCharCode(c);
     }
     final t = buf.toString().toUpperCase();
-    // 移除空白、底線、斜線、連字號、反斜線、Tab、CR等
     return t.replaceAll(RegExp(r'[\s_\-\/\\\t\r\n]+'), '');
   }
+
+  // 等價家族映射（key 使用 _normalize 後的字串）
+  String _toFamily(String raw) {
+    final s = _normalize(raw);
+    switch (s) {
+      // A 小調家族
+      case 'AM':
+      case 'AM7':
+        return 'A*MIN';
+
+      // C 大調家族
+      case 'C':
+      case 'CADD9':
+        return 'C*MAJ';
+
+      // D 家族（常見變化）
+      case 'D':
+      case 'DSUS4':
+      case 'D7F#':
+        return 'D*GEN';
+
+      // E 小調家族
+      case 'EM':
+      case 'EM7':
+        return 'E*MIN';
+
+      // 單一和弦（沒有等價）
+      case 'G':
+        return 'G*';
+      case 'B':
+        return 'B*MAJ';
+      case 'BM':
+        return 'B*MIN';
+    }
+    return s; // 未定義則回傳自身
+  }
+
+  bool _sameFamily(String a, String b) => _toFamily(a) == _toFamily(b);
 
   void _logThisRound({double? successConf}) {
     if (_loggedThisRound) return;
@@ -448,7 +677,6 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
     _loggedThisRound = true;
   }
 
-  // 逾時：顯示「未完成」頁（之後可改為導向和弦學習）
   Future<void> _showFailOverlay() async {
     if (!mounted) return;
     _logThisRound();
@@ -467,7 +695,7 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+              const Text('X',style:TextStyle( color: Colors.redAccent, fontSize:48)),
               const SizedBox(height: 12),
               const Text('未完成', style: TextStyle(color: Colors.white, fontSize: 22)),
               const SizedBox(height: 8),
@@ -482,8 +710,8 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
-                      Navigator.pop(context);       // 關掉失敗面板
-                      Navigator.pop(context);       // 離開挑戰
+                      Navigator.pop(context);
+                      Navigator.pop(context);
                     },
                     child: const Text('結束挑戰'),
                   ),
@@ -494,8 +722,8 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
                       foregroundColor: Colors.black87,
                     ),
                     onPressed: () {
-                      Navigator.pop(context); // 關掉失敗面板
-                      _startPlay();           // 直接下一題（不倒數）
+                      Navigator.pop(context);
+                      _startPlay();
                     },
                     child: const Text('下一題'),
                   ),
@@ -577,7 +805,6 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
             child: Builder(builder: (_) {
               final isFront = _cam!.description.lensDirection == CameraLensDirection.front;
               final pv = CameraPreview(_cam!);
-              // 前鏡頭做水平鏡像，視覺更直覺（不影響送到後端的影像）
               return isFront
                   ? Transform(
                       alignment: Alignment.center,
@@ -596,10 +823,13 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
         title: const Text('Basic Chords 挑戰'),
         centerTitle: true,
         actions: [
-          IconButton(
+          TextButton(
             onPressed: _openHistorySheet,
-            icon: const Icon(Icons.history, color: Colors.white),
-            tooltip: '查看紀錄',
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            child: const Text('查看紀錄', style: TextStyle(fontSize: 22)),
           ),
         ],
       ),
@@ -630,18 +860,23 @@ class _BasicChordsChallengePageState extends State<BasicChordsChallengePage> {
                     const SizedBox(height: 8),
                     if (_lastPredLabel != null)
                       Text(
-                        '辨識：$_lastPredLabel'
+                        '影像：$_lastPredLabel'
                         '${_lastPredConf != null ? ' (${_lastPredConf!.toStringAsFixed(2)})' : ''}',
                         style: const TextStyle(color: Colors.white70),
+                      ),
+                    if (_lastAudioVote != null)
+                      Text(
+                        '音訊：$_lastAudioVote'
+                        '${_lastAudioConf != null ? ' (${_lastAudioConf!.toStringAsFixed(2)})' : ''}'
+                        '${_lastEnergy != null ? '  energy ${_lastEnergy!.toStringAsFixed(3)}' : ''}',
+                        style: const TextStyle(color: Colors.white54),
                       ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFD9D9D9),
-                        foregroundColor: Colors.black87,
-                      ),
+                        foregroundColor: Colors.black87),
                       onPressed: () {
-                        // 手動結束：當作逾時處理（跳未完成頁）
                         _stopInfer();
                         _playTimer?.cancel();
                         _success = false;
@@ -672,7 +907,24 @@ class _Pred {
   final String label;
   final double? confidence;
   final bool? isCorrect;
-  _Pred({required this.label, this.confidence, this.isCorrect});
+  final Map<String, double>? topk; // label(正規化) -> 機率
+
+  // 伺服器多數決 / 連續幀
+  final String? majLabel;
+  final double? majConfidence;
+  final bool? isCorrectMaj;
+  final bool scoreEvent;
+
+  _Pred({
+    required this.label,
+    this.confidence,
+    this.isCorrect,
+    this.topk,
+    this.majLabel,
+    this.majConfidence,
+    this.isCorrectMaj,
+    this.scoreEvent = false,
+  });
 }
 
 // ────── 共用底部導覽列項目 ──────

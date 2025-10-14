@@ -93,7 +93,10 @@ class TunerEngine {
       onDone: _handleStreamEnd,
       cancelOnError: false,
     );
-    _tick ??= Timer.periodic(const Duration(milliseconds: 45), (_) => _processOnce());
+
+    // 與 hop 對齊（步幅一致）
+    final hopMs = (HOP_SAMPLES * 1000 / _fs).round();
+    _tick ??= Timer.periodic(Duration(milliseconds: hopMs), (_) => _processOnce());
   }
 
   Future<void> stop() async {
@@ -122,6 +125,11 @@ class TunerEngine {
     for (int i = 0; i + 1 < bd.lengthInBytes; i += 2) {
       _pcm.add(bd.getInt16(i, Endian.little));
     }
+    // 安全上限：保留約 2 秒的原始音，避免記憶體累積
+    const int _pcmCap = 44100 * 2;
+    if (_pcm.length > _pcmCap) {
+      _pcm.removeRange(0, _pcm.length - _pcmCap);
+    }
   }
 
   Future<void> _processOnce() async {
@@ -140,9 +148,12 @@ class TunerEngine {
     final frame = _pcm.take(WIN_SAMPLES).toList();
     _pcm.removeRange(0, HOP_SAMPLES);
 
-    // === RMS 動態門檻（保守）===
+    // === RMS 動態門檻（保守）===（先轉 double，避免 s*s 整數溢位）
     double sum2 = 0;
-    for (final s in frame) sum2 += s * s;
+    for (final s in frame) {
+      final ds = s.toDouble();
+      sum2 += ds * ds;
+    }
     final rms = math.sqrt(sum2 / frame.length) / 32768.0;
 
     if (!_voiced || rms < _noiseRms * 1.2) {
@@ -212,7 +223,7 @@ class TunerEngine {
           _lock(nearest, ref);
           cents = med; // 使用中位數較穩
         } else {
-          // 未上鎖：輸出暫時值，但也做平滑（避免完全沒有反應）
+          // 未上鎖：輸出暫時值，但也做平滑
           final fSmoothed = (_freqEma == 0)
               ? f
               : (_emaAlpha * f + (1 - _emaAlpha) * _freqEma);

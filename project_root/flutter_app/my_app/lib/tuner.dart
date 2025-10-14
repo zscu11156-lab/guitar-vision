@@ -1,5 +1,11 @@
+// lib/tuner.dart  或  lib/gv_tuner_page.dart（依你的檔名）
+// 完整可覆蓋版：含螢幕常亮、生命週期管理、靈敏度調整
+
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+
 import 'homepage.dart';
 import 'settings.dart';
 import 'chordchart.dart';
@@ -8,9 +14,6 @@ import 'member.dart';
 // 偵測引擎
 import 'tuner_engine.dart';
 
-// 允許執行時請求麥克風權限
-import 'package:permission_handler/permission_handler.dart';
-
 class GvTunerPage extends StatefulWidget {
   const GvTunerPage({super.key});
 
@@ -18,41 +21,74 @@ class GvTunerPage extends StatefulWidget {
   State<GvTunerPage> createState() => _GvTunerPageState();
 }
 
-class _GvTunerPageState extends State<GvTunerPage> {
+class _GvTunerPageState extends State<GvTunerPage> with WidgetsBindingObserver {
   final TunerEngine _engine = TunerEngine();
   TunerState _s = TunerState.empty;
   StreamSubscription<TunerState>? _sub;
 
+  double _sens = 0.75; // 與引擎同步的靈敏度(0~1; 越大越敏感)
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // 保持螢幕常亮（調音時不休眠）
+    WakelockPlus.enable();
+
+    // 同步 sensitivity
+    _sens = _engine.sensitivity;
+
+    // 監聽引擎輸出
     _sub = _engine.stream.listen((st) {
       if (!mounted) return;
       setState(() => _s = st);
     });
-    _initPermissionsAndStart(); // 先要權限，再啟動偵測
+
+    _initPermissionsAndStart(); // 要權限 → 啟動
   }
 
   Future<void> _initPermissionsAndStart() async {
     final mic = await Permission.microphone.request();
+    if (!mounted) return;
+
     if (mic.isGranted) {
-      if (!mounted) return;
       _engine.start();
     } else if (mic.isPermanentlyDenied) {
+      // 導去系統設定
       await openAppSettings();
+    } else {
+      // 暫時拒絕
+      setState(() {
+        _s = const TunerState(
+          advice: '需要麥克風權限才能偵測，請允許後再試。',
+        );
+      });
     }
   }
 
-  Future<void> _restart() async { // ★ 新增：一鍵重啟偵測
+  Future<void> _restart() async {
     await _engine.stop();
     if (!mounted) return;
     _engine.start();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 背景暫停，回前景自動恢復（避免掛在背景耗電）
+    if (state == AppLifecycleState.paused) {
+      _engine.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      _initPermissionsAndStart();
+    }
+  }
+
+  @override
   void dispose() {
     _sub?.cancel();
     _engine.dispose();
+    WakelockPlus.disable();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -61,14 +97,18 @@ class _GvTunerPageState extends State<GvTunerPage> {
     const double navIcon = 50;
 
     final bool hasFreq = _s.freq > 0;
-    final bool noInput = !hasFreq && (_s.advice.contains('未收到') || _s.advice.contains('沒有音訊'));
+    final bool noInput = !hasFreq &&
+        (_s.advice.contains('未收到') || _s.advice.contains('沒有音訊') || _s.advice.contains('權限'));
+
     final String noteLine = hasFreq && _s.note.isNotEmpty
         ? '${_s.note}（${_s.hint}）'
         : '—';
+
     final String freqLine = hasFreq
         ? '${_s.freq.toStringAsFixed(2)} Hz'
         : (noInput ? '沒有音訊輸入' : '偵測中…');
-    final double cents = _s.diffCents; // 你的引擎已提供 diffCents
+
+    final double cents = _s.diffCents;
     final String diffLine = hasFreq && _s.note.isNotEmpty
         ? '偏差：${cents >= 0 ? '+' : ''}${cents.toStringAsFixed(1)} cents（${_dirWord(cents)}）'
         : '—';
@@ -98,7 +138,6 @@ class _GvTunerPageState extends State<GvTunerPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // ★ 狀態點：有頻率=綠；無=灰
                       Container(
                         width: 14,
                         height: 14,
@@ -111,7 +150,6 @@ class _GvTunerPageState extends State<GvTunerPage> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // ★ 重新啟動按鈕
                       IconButton(
                         icon: const Icon(Icons.refresh, color: Colors.white70),
                         tooltip: '重新啟動偵測',
@@ -174,6 +212,32 @@ class _GvTunerPageState extends State<GvTunerPage> {
                         '建議：±5 cents 以內視為準確',
                         style: TextStyle(color: Colors.white38, fontSize: 12),
                       ),
+
+                      const SizedBox(height: 28),
+
+                      // 靈敏度調整（直接影響開關門檻）
+                      Row(
+                        children: [
+                          const Text('靈敏度', style: TextStyle(color: Colors.white70)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Slider(
+                              value: _sens,
+                              min: 0.0,
+                              max: 1.0,
+                              divisions: 20,
+                              label: _sens.toStringAsFixed(2),
+                              onChanged: (v) {
+                                setState(() {
+                                  _sens = v;
+                                  _engine.sensitivity = v;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -246,6 +310,7 @@ class _GvTunerPageState extends State<GvTunerPage> {
   }
 
   String _dirWord(double cents) {
+    if (!cents.isFinite) return '—';
     if (cents.abs() <= 5) return '準確';
     return cents > 0 ? '偏高' : '偏低';
   }
